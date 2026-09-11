@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+**/node_modules
+**/.venv
+**/__pycache__
+**/dist
+**/*.sqlite3
+backups
+test-results

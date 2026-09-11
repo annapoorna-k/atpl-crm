@@ -1,0 +1,12 @@
+fastapi>=0.135,<0.136
+uvicorn[standard]>=0.41,<0.42
+SQLAlchemy>=2.0.48,<2.1
+alembic>=1.18,<1.19
+psycopg[binary]>=3.3,<3.4
+pydantic-settings>=2.13,<2.14
+email-validator>=2.3,<2.4
+pwdlib[argon2]>=0.3,<0.4
+celery>=5.6,<5.7
+redis>=7.3,<7.4
+httpx>=0.28,<0.29
+pytest>=9.0,<9.1
