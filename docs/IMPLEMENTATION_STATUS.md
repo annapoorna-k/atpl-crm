@@ -1,4 +1,4 @@
-# ATPLCRM v0.5 delivery status
+# ATPLCRM v0.6 delivery status
 
 This release starts the implementation plan and delivers an executable core. It does not mark all phases complete.
 
@@ -16,6 +16,9 @@ This release starts the implementation plan and delivers an executable core. It 
 - Server-side pagination, filtering and sorting for the four main record lists, plus private saved views for each user.
 - Manager bulk owner/Ball-in-Court assignment with audit history and optimistic conflict handling.
 - Opportunity stakeholder add, role edit and removal workflows, restricted to same-company contacts and protecting the primary contact.
+- Pipeline drag-and-drop with accessible select fallback, evidence capture, locked/version-protected stage transitions and automatic lifecycle timestamps.
+- Atomic action completion that preserves immutable history and requires a new owner, action, type and future due date.
+- Seven milestone pursuit timeline and aggregate count/median working-day health report.
 - FastAPI workflow tests, TypeScript/production UI build, plus Docker/PostgreSQL and browser verification as recorded in VERIFICATION.md.
 
 ## Deliberate limits and remaining work
@@ -25,12 +28,12 @@ This release starts the implementation plan and delivers an executable core. It 
 | Administration | Fine-grained permission policies and connected-identity provisioning. Local users, global access levels, activation, password resets, reference options, stage probabilities and rates are editable now. |
 | Schema | Remaining partner agreement scope/evidence fields, artifact/email/share fields and delivery fields; complete database-level role/tenant constraints and separate runtime/migration privileges. |
 | Data entry | Excel imports, background processing beyond the current 5,000-row CSV limit, fuzzy duplicate matching, field-level merge selection, contact engagement updates and remaining opportunity business fields. |
-| Pipeline | Drag-and-drop interaction (accessible select movement works now), remaining specialized filters, action completion flow, full stage-edit concurrency and seven-milestone reporting. |
+| Pipeline | Remaining specialized filters, configurable working calendars and deeper stage movement analysis. Drag-and-drop, accessible select movement, action completion, stage-edit concurrency and seven-milestone reporting work now. |
 | Commercial | Partner-term UI/calculation coverage, rate-update UI/API and refresh, probability snapshot semantics, complete won/lost/handoff fields and approval evidence. Unknown partner formulas currently make net value unavailable rather than inflating it. |
 | Activity | Full paginated contact/company histories; current bootstrap returns the latest 50 permitted activities. Future meetings and completed interactions remain separate. |
 | Documents | Real upload/storage adapter, Outlook add-in, email linking/attachments, sharing approval/recipients/register, artifact version supersession and reusable library. Basic HTTPS evidence links work. |
 | Pre-sales | Full transition matrix, review evidence gate, contributors, per-person weekly capacity and cost analytics. Basic assignee/manager status rules work. |
-| Reports | Monthly/quarterly filters, loss/bottleneck/blocker/value-erosion/partner/movement analysis, individual performance, server exports, Excel support and configuration parity. Current lead chart is status distribution, not historical conversion analytics. |
+| Reports | Monthly/quarterly filters, loss/blocker/value-erosion/partner/movement analysis, individual performance, server exports, Excel support and configuration parity. Lifecycle bottlenecks use the current weekday calendar; the lead chart is status distribution, not historical conversion analytics. |
 | Search/scale | Search-specific PostgreSQL indexes/full-text ranking, recent-search history, stale-data/query caching and documented 20k/5k/5k performance acceptance. Universal search and the four main record lists paginate on the server. |
 | Notifications | Preferences, complete recipient/escalation rules, scheduled summaries, failure monitoring and durable delivery history. Current worker refreshes basic reminders every five minutes. |
 | AI | Entire approved Azure adapter, grounded summaries/extraction, consent/review UI and evaluations. No fake AI buttons. |

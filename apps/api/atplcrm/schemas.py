@@ -111,12 +111,24 @@ class WorkInput(Input):
 
 class StageInput(Input):
     stage: str
+    version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=250)
     revisit_date: date | None = None
     loss_reason: str | None = None
     competitor_name: str = ""
     contract_number: str | None = None
     contract_date: date | None = None
     final_value: Decimal | None = Field(None, ge=0)
+
+
+class ActionCompletionInput(Input):
+    version: int = Field(ge=1)
+    outcome: str = Field(min_length=1, max_length=80)
+    note: str = ""
+    next_holder: int
+    next_action: str = Field(min_length=1, max_length=250)
+    next_action_type: str
+    next_action_date: date
 
 
 class ValueInput(Input):

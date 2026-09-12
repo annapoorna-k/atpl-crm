@@ -51,6 +51,7 @@ import type {
   Request,
   Timeline,
   AdminReference,
+  MilestoneReport,
 } from "./types";
 
 const money = (
@@ -406,7 +407,9 @@ export default function App() {
     [notifications, setNotifications] = useState(false),
     [mobile, setMobile] = useState(false),
     [ownerFilter, setOwnerFilter] = useState("all"),
-    [pipelineView, setPipelineView] = useState("board");
+    [pipelineView, setPipelineView] = useState("board"),
+    [draggedPursuit, setDraggedPursuit] = useState<Pursuit | null>(null),
+    [milestoneReport, setMilestoneReport] = useState<MilestoneReport[]>([]);
   const detailRef = useRef<HTMLDialogElement>(null);
   async function load() {
     try {
@@ -447,6 +450,12 @@ export default function App() {
         .catch((e) => setToast(e.message));
     }
   }, [selected, data]);
+  useEffect(() => {
+    if (session && page === "reports")
+      api<MilestoneReport[]>("pipeline/milestones/")
+        .then(setMilestoneReport)
+        .catch((e) => setToast(e.message));
+  }, [page, session, data]);
   useEffect(() => {
     if (selected || companyId || contactId) detailRef.current?.showModal();
   }, [selected, companyId, contactId]);
@@ -963,7 +972,12 @@ export default function App() {
   }
   function changeStage(r: Pursuit, target: string) {
     if (target === r.stage) return;
-    const fields: Field[] = [];
+    const fields: Field[] = [
+      field("reason", "Stage change evidence", {
+        type: "textarea",
+        hint: "Record the customer signal, decision, or evidence supporting this movement.",
+      }),
+    ];
     if (target === "hold")
       fields.push(
         field("revisit_date", "Revisit date", {
@@ -990,24 +1004,50 @@ export default function App() {
           value: r.current_value,
         }),
       );
-    if (fields.length)
-      setForm({
-        title: `Move to ${dictLabel(d.reference.stages, target)}`,
-        description:
-          target === "won"
-            ? "Register final contract, PO or SOW evidence before closing."
-            : undefined,
-        fields,
-        submit: (v) =>
-          api(`opportunities/${r.opportunity_id}/stage/`, "POST", {
-            ...v,
-            stage: target,
-          }),
-      });
-    else
-      void mutate(`opportunities/${r.opportunity_id}/stage/`, {
-        stage: target,
-      });
+    setForm({
+      title: `Move to ${dictLabel(d.reference.stages, target)}`,
+      description:
+        target === "won"
+          ? "Register final contract, PO or SOW evidence before closing."
+          : "The movement and its evidence will be retained in the audit timeline.",
+      fields,
+      submit: (v) =>
+        api(`opportunities/${r.opportunity_id}/stage/`, "POST", {
+          ...v,
+          stage: target,
+          version: r.version,
+        }),
+    });
+  }
+  function completeAction(r: Pursuit) {
+    setForm({
+      title: "Complete action and set the next step",
+      description:
+        "The completed action is preserved as history. A future next action keeps ownership clear.",
+      fields: [
+        field("outcome", "Outcome"),
+        field("note", "Completion note", { type: "textarea", required: false }),
+        field("next_holder", "New Ball in Court holder", {
+          options: d.users.map((u) => [String(u.id), u.name]),
+          value: String(r.holder_id),
+        }),
+        field("next_action", "Next action"),
+        field("next_action_type", "Action type", {
+          options: options(d.reference.actions),
+          value: r.action_type,
+        }),
+        field("next_action_date", "Next action date", {
+          type: "date",
+          value: tomorrow(),
+        }),
+      ],
+      label: "Complete action",
+      submit: (v) =>
+        api(`pipeline/pursuits/${r.id}/actions/complete/`, "POST", {
+          ...v,
+          version: r.version,
+        }),
+    });
   }
   function requestForm() {
     setForm({
@@ -1337,7 +1377,7 @@ export default function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="workspace-health">
-            <span className="live-dot" /> Local workspace <Badge>v0.5</Badge>
+            <span className="live-dot" /> Local workspace <Badge>v0.6</Badge>
           </div>
           <button className="profile" onClick={() => go("settings")}>
             <Avatar name={d.user.name} />
@@ -1936,7 +1976,27 @@ export default function App() {
                       (r) => (page === "pipeline" ? r.stage : r.status) === key,
                     );
                     return (
-                      <section className="kanban-column" key={key}>
+                      <section
+                        className={`kanban-column ${draggedPursuit && page === "pipeline" && draggedPursuit.stage !== key ? "drop-ready" : ""}`}
+                        key={key}
+                        data-stage={key}
+                        onDragOver={(event) => {
+                          if (page === "pipeline" && draggedPursuit?.can_work)
+                            event.preventDefault();
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          const pursuitId = event.dataTransfer.getData(
+                            "application/x-atplcrm-pursuit",
+                          );
+                          const droppedPursuit = d.opportunities.find(
+                            (item) => item.id === pursuitId,
+                          );
+                          if (page === "pipeline" && droppedPursuit?.can_work)
+                            changeStage(droppedPursuit, key);
+                          setDraggedPursuit(null);
+                        }}
+                      >
                         <div className="kanban-heading">
                           <span className={`stage-dot stage-${key}`} />
                           <strong>
@@ -1965,8 +2025,20 @@ export default function App() {
                         <div className="kanban-cards">
                           {rows.map((r) => (
                             <button
-                              className="deal-card"
+                              className={`deal-card ${draggedPursuit?.id === r.id ? "dragging" : ""}`}
                               key={r.id}
+                              draggable={page === "pipeline" && r.can_work}
+                              data-pursuit-id={r.id}
+                              aria-label={`${r.name} · ${page === "pipeline" && r.can_work ? "Drag to move stage or open details" : "Open details"}`}
+                              onDragStart={(event) => {
+                                event.dataTransfer.effectAllowed = "move";
+                                event.dataTransfer.setData(
+                                  "application/x-atplcrm-pursuit",
+                                  r.id,
+                                );
+                                setDraggedPursuit(r);
+                              }}
+                              onDragEnd={() => setDraggedPursuit(null)}
                               onClick={() => openPursuit(r)}
                             >
                               <div className="card-company">
@@ -2217,6 +2289,52 @@ export default function App() {
                   </div>
                 </section>
               </div>
+              <section className="panel milestone-report-panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Seven-milestone lifecycle</h2>
+                    <p>
+                      Completed pursuits and median elapsed working days between
+                      each milestone.
+                    </p>
+                  </div>
+                  <Badge>{milestoneReport.length} milestones</Badge>
+                </div>
+                <div className="milestone-report-grid">
+                  {milestoneReport.map((milestone) => (
+                    <button
+                      key={milestone.key}
+                      onClick={() =>
+                        go(
+                          [
+                            "lead_created",
+                            "first_contacted",
+                            "ready_for_validation",
+                          ].includes(milestone.key)
+                            ? "leads"
+                            : "pipeline",
+                        )
+                      }
+                    >
+                      <span
+                        className={`milestone-status ${milestone.healthy ? "healthy" : "slow"}`}
+                      />
+                      <small>{milestone.label}</small>
+                      <strong>{milestone.count}</strong>
+                      <span>
+                        {milestone.median_working_days == null
+                          ? "No elapsed data"
+                          : `${milestone.median_working_days} median workdays`}
+                      </span>
+                      {milestone.target_working_days > 0 && (
+                        <em>
+                          Healthy &lt; {milestone.target_working_days} days
+                        </em>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </section>
               <section className="panel">
                 <div className="panel-heading">
                   <div>
@@ -2539,6 +2657,15 @@ export default function App() {
                       <Plus size={14} />
                       Log interaction
                     </button>
+                    {(!p.opportunity_id ||
+                      !["won", "lost"].includes(p.stage ?? "")) && (
+                      <button
+                        className="button secondary"
+                        onClick={() => completeAction(p)}
+                      >
+                        <CheckCheck size={14} /> Complete action
+                      </button>
+                    )}
                     <button
                       className="button primary"
                       onClick={() => workForm(p)}
@@ -2622,6 +2749,7 @@ export default function App() {
               <div className="detail-tabs">
                 {[
                   "Overview",
+                  "Milestones",
                   "Timeline",
                   "Team & contacts",
                   "Documents",
@@ -2800,6 +2928,29 @@ export default function App() {
                       )}
                   </>
                 )}
+                {detailTab === "Milestones" && (
+                  <div
+                    className="milestone-detail"
+                    aria-label="Seven lifecycle milestones"
+                  >
+                    {p.milestones.map((milestone, index) => (
+                      <div
+                        className={milestone.at ? "complete" : "pending"}
+                        key={milestone.key}
+                      >
+                        <span>
+                          {milestone.at ? <Check size={14} /> : index + 1}
+                        </span>
+                        <div>
+                          <strong>{milestone.label}</strong>
+                          <small>
+                            {milestone.at ? date(milestone.at) : "Not reached"}
+                          </small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {detailTab === "Timeline" &&
                   (timeline ? (
                     <>
@@ -2825,6 +2976,14 @@ export default function App() {
                           date: e.date,
                           author: e.author,
                           label: "System event",
+                        })),
+                        ...timeline.completed_actions.map((a) => ({
+                          id: a.id,
+                          title: a.summary,
+                          detail: a.note,
+                          date: a.completed_at,
+                          author: a.completed_by,
+                          label: `Completed action · ${a.outcome}`,
                         })),
                       ]
                         .sort((a, b) => b.date.localeCompare(a.date))

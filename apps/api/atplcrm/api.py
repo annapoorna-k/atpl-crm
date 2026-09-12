@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from . import presenters as out
 from .constants import MANAGEMENT
 from .database import get_db
-from .models import Activity, AppSession, Artifact, AuditEvent, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PreSalesRequest, Pursuit, PursuitContact, TeamRole, User, ValueHistory, WorkspaceReference
+from .models import Activity, AppSession, Artifact, AuditEvent, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PreSalesRequest, Pursuit, PursuitAction, PursuitContact, TeamRole, User, ValueHistory, WorkspaceReference
 from .references import contract as reference_contract, probability as stage_probability, require_code
 from .schemas import ActivityInput, ArtifactInput, CompanyInput, CompanyPatch, ContactInput, ContactPatch, ConversionInput, DisqualifyInput, LeadInput, LeadStatusInput, LoginInput, NurtureInput, ProbabilityInput, RequestInput, RequestPatch, RestrictionInput, StageInput, TeamInput, ValueInput, WorkInput
 from .security import current_user, delete_session, hash_token, new_session, set_session_cookie, verify_password
@@ -34,8 +34,11 @@ def load_pursuit(db: Session, user: User, identifier: UUID, *, lock: bool = Fals
     return item
 
 
-def load_opportunity(db: Session, user: User, identifier: UUID) -> Opportunity:
-    item = db.scalar(scoped(db, Opportunity, user).where(Opportunity.id == identifier).options(selectinload(Opportunity.pursuit).options(*user_options()), selectinload(Opportunity.primary_contact), selectinload(Opportunity.values), selectinload(Opportunity.partners)))
+def load_opportunity(db: Session, user: User, identifier: UUID, *, lock: bool = False) -> Opportunity:
+    statement = scoped(db, Opportunity, user).where(Opportunity.id == identifier).options(selectinload(Opportunity.pursuit).options(*user_options()), selectinload(Opportunity.primary_contact), selectinload(Opportunity.values), selectinload(Opportunity.partners))
+    if lock and db.bind and db.bind.dialect.name != "sqlite":
+        statement = statement.with_for_update()
+    item = db.scalar(statement)
     if not item:
         raise http_error(404, "Record not found.")
     return item
@@ -263,8 +266,14 @@ def update_work(identifier: UUID, payload: WorkInput, db: Session = Depends(get_
 
 @router.post("/opportunities/{identifier}/stage/")
 def update_stage(identifier: UUID, payload: StageInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    opportunity = load_opportunity(db, user, identifier); pursuit = opportunity.pursuit; require_work(db, user, pursuit)
+    opportunity = load_opportunity(db, user, identifier, lock=True)
+    pursuit = load_pursuit(db, user, opportunity.pursuit_id, lock=True)
+    opportunity.pursuit = pursuit
+    require_work(db, user, pursuit)
+    if payload.version != pursuit.version: raise http_error(409, "This pursuit changed. Refresh before moving it.")
     require_code(db, user, "stages", payload.stage, "stage")
+    if payload.stage == opportunity.stage:
+        return out.opportunity(db, opportunity, user)
     if payload.stage in {"presales", "proposal", "negotiation", "contract", "won"}:
         roles = set(db.scalars(scoped(db, TeamRole, user).where(TeamRole.pursuit_id == pursuit.id, TeamRole.role.in_(["Pre-sales owner", "Tech lead"]))).all())
         role_names = {role.role for role in roles}
@@ -288,7 +297,8 @@ def update_stage(identifier: UUID, payload: StageInput, db: Session = Depends(ge
     if payload.stage == "presales" and not pursuit.presales_assigned_at: pursuit.presales_assigned_at = now
     if payload.stage == "proposal" and not pursuit.proposal_sent_at: pursuit.proposal_sent_at = now
     if payload.stage in {"won", "lost"}: pursuit.closed_at = now
-    pursuit.version += 1; audit(db, user, "Stage changed", pursuit, f"{old} → {payload.stage}", before={"stage": old}, after={"stage": payload.stage}); db.commit()
+    old_version = pursuit.version; pursuit.version += 1
+    audit(db, user, "Stage changed", pursuit, payload.reason, before={"stage": old, "version": old_version}, after={"stage": payload.stage, "version": pursuit.version}); db.commit()
     return out.opportunity(db, load_opportunity(db, user, identifier), user)
 
 
@@ -319,6 +329,9 @@ def assign_team(identifier: UUID, payload: TeamInput, db: Session = Depends(get_
         else: db.add(TeamRole(**stamp(user), pursuit_id=pursuit.id, user_id=member.id, role=payload.role))
     elif not db.scalar(scoped(db, TeamRole, user).where(TeamRole.pursuit_id == pursuit.id, TeamRole.user_id == member.id, TeamRole.role == payload.role)):
         db.add(TeamRole(**stamp(user), pursuit_id=pursuit.id, user_id=member.id, role=payload.role))
+    if payload.role == "Pre-sales owner" and not pursuit.presales_assigned_at:
+        pursuit.presales_assigned_at = datetime.now(timezone.utc)
+        pursuit.version += 1
     audit(db, user, "Team assigned", pursuit, f"{member.display_name} · {payload.role}"); db.commit()
     return out.opportunity(db, load_opportunity(db, user, identifier), user)
 
@@ -361,12 +374,13 @@ def timeline(identifier: UUID, db: Session = Depends(get_db), user: User = Depen
     events = db.scalars(scoped(db, AuditEvent, user).where(AuditEvent.pursuit_id == pursuit.id).options(selectinload(AuditEvent.created_by)).order_by(AuditEvent.created_at.desc())).all()
     if not visible:
         events = [event for event in events if event.action not in {"Value recorded", "Exchange rate updated"}]
-        return {"activities": [], "events": [{"id": str(event.id), "action": event.action, "detail": "", "date": event.created_at, "author": event.created_by.display_name if event.created_by else "System"} for event in events], "artifacts": [], "restricted_content": True}
+        return {"activities": [], "events": [{"id": str(event.id), "action": event.action, "detail": "", "date": event.created_at, "author": event.created_by.display_name if event.created_by else "System"} for event in events], "completed_actions": [], "artifacts": [], "restricted_content": True}
     activities = db.scalars(scoped(db, Activity, user).where(Activity.pursuit_id == pursuit.id).options(selectinload(Activity.company), selectinload(Activity.created_by)).order_by(Activity.activity_date.desc())).all()
     artifact_query = scoped(db, Artifact, user).where(Artifact.pursuit_id == pursuit.id)
     if not can_work(db, user, pursuit): artifact_query = artifact_query.where(Artifact.internal_only.is_(False))
     artifacts = db.scalars(artifact_query).all()
-    return {"activities": [out.activity(item) for item in activities], "events": [{"id": str(event.id), "action": event.action, "detail": event.detail, "date": event.created_at, "author": event.created_by.display_name if event.created_by else "System"} for event in events], "artifacts": [{"id": str(item.id), "title": item.title, "type": item.artifact_type, "url": item.storage_link, "version": item.version, "internal_only": item.internal_only, "approved": bool(item.approved_by_id), "shared_at": item.shared_at} for item in artifacts]}
+    actions = db.scalars(scoped(db, PursuitAction, user).where(PursuitAction.pursuit_id == pursuit.id).options(selectinload(PursuitAction.completed_by)).order_by(PursuitAction.completed_at.desc())).all()
+    return {"activities": [out.activity(item) for item in activities], "events": [{"id": str(event.id), "action": event.action, "detail": event.detail, "date": event.created_at, "author": event.created_by.display_name if event.created_by else "System"} for event in events], "completed_actions": [out.completed_action(item) for item in actions], "artifacts": [{"id": str(item.id), "title": item.title, "type": item.artifact_type, "url": item.storage_link, "version": item.version, "internal_only": item.internal_only, "approved": bool(item.approved_by_id), "shared_at": item.shared_at} for item in artifacts]}
 
 
 @router.post("/requests/", status_code=201)

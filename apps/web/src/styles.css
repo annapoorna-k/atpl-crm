@@ -3278,3 +3278,112 @@ td small {
     scroll-behavior: auto !important;
   }
 }
+
+.deal-card[draggable="true"] {
+  cursor: grab;
+}
+.deal-card.dragging {
+  opacity: 0.45;
+}
+.kanban-column.drop-ready {
+  outline: 2px dashed #e5b834;
+  outline-offset: -3px;
+  background: #fffdf4;
+}
+.milestone-detail {
+  display: grid;
+  gap: 0;
+  max-width: 620px;
+}
+.milestone-detail > div {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  min-height: 58px;
+  position: relative;
+}
+.milestone-detail > div > span {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #e8eef3;
+  color: #6a7d8c;
+  font-size: 10px;
+  font-weight: 800;
+  z-index: 1;
+}
+.milestone-detail > div.complete > span {
+  background: var(--navy);
+  color: var(--yellow);
+}
+.milestone-detail > div:not(:last-child):after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 26px;
+  width: 2px;
+  height: 32px;
+  background: #dbe4ea;
+}
+.milestone-detail strong,
+.milestone-detail small {
+  display: block;
+}
+.milestone-detail small {
+  margin-top: 4px;
+  color: #80909d;
+}
+.milestone-report-panel {
+  margin: 18px 0;
+}
+.milestone-report-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(130px, 1fr));
+  gap: 10px;
+}
+.milestone-report-grid button {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  border: 1px solid #e2e9ee;
+  border-radius: 8px;
+  padding: 13px;
+  background: #fff;
+  color: var(--navy);
+  cursor: pointer;
+}
+.milestone-report-grid strong {
+  font-size: 24px;
+}
+.milestone-report-grid small {
+  font-weight: 750;
+}
+.milestone-report-grid span,
+.milestone-report-grid em {
+  color: #748795;
+  font-size: 9px;
+  font-style: normal;
+}
+.milestone-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.milestone-status.healthy {
+  background: #3b936d;
+}
+.milestone-status.slow {
+  background: #d28552;
+}
+@media (max-width: 1100px) {
+  .milestone-report-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .milestone-report-grid {
+    grid-template-columns: 1fr;
+  }
+}

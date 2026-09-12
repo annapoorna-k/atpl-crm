@@ -319,3 +319,79 @@ test("login recovers when another tab refreshes the CSRF cookie", async ({
   ).toBeVisible();
   await expect(page.getByText("CSRF validation failed.")).toHaveCount(0);
 });
+
+test("manager drags a stage, completes an action and reviews milestones", async ({
+  page,
+}) => {
+  await signIn(page, "alex");
+  await page.goto("/#pipeline");
+  const card = page.getByRole("button", {
+    name: /Predictive maintenance platform · Drag to move stage or open details/,
+  });
+  const sourceColumn = card.locator("xpath=ancestor::section[@data-stage]");
+  const sourceStage = await sourceColumn.getAttribute("data-stage");
+  let targetStage = "discovery";
+  for (const candidate of [
+    "discovery",
+    "presales",
+    "proposal",
+    "negotiation",
+    "contract",
+  ]) {
+    if (
+      candidate !== sourceStage &&
+      (await page.locator(`[data-stage="${candidate}"] .deal-card`).count()) ===
+        0
+    ) {
+      targetStage = candidate;
+      break;
+    }
+  }
+  const transfer = await page.evaluateHandle(() => new DataTransfer());
+  await card.dispatchEvent("dragstart", { dataTransfer: transfer });
+  await page
+    .locator(`[data-stage="${targetStage}"]`)
+    .dispatchEvent("dragover", {
+      dataTransfer: transfer,
+    });
+  await page.locator(`[data-stage="${targetStage}"]`).dispatchEvent("drop", {
+    dataTransfer: transfer,
+  });
+  const movement = page.getByRole("dialog").last();
+  await movement
+    .getByLabel("Stage change evidence")
+    .fill("Customer confirmed progression during browser acceptance.");
+  await movement.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Changes saved successfully.")).toBeVisible();
+  const movedCard = page
+    .locator(`[data-stage="${targetStage}"]`)
+    .getByRole("button", { name: /Predictive maintenance platform/ });
+  await expect(movedCard).toBeVisible();
+  await movedCard.click();
+  await page.getByRole("button", { name: "Complete action" }).click();
+  const completion = page.getByRole("dialog").last();
+  await completion.getByLabel("Outcome").fill("Completed");
+  await completion
+    .getByLabel("Completion note")
+    .fill("The customer accepted the planned next step.");
+  await completion
+    .getByLabel("New Ball in Court holder")
+    .selectOption({ label: "Omar Hassan" });
+  await completion
+    .locator('input[name="next_action"]')
+    .fill("Prepare executive workshop");
+  await completion.getByRole("button", { name: "Complete action" }).click();
+  await expect(page.getByText("Changes saved successfully.")).toBeVisible();
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
+  await expect(
+    page.getByText("Completed action · Completed").first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Milestones", exact: true }).click();
+  await expect(page.locator(".milestone-detail > div")).toHaveCount(7);
+  await page.getByRole("button", { name: "Close details" }).click();
+  await page.goto("/#reports");
+  await expect(
+    page.getByRole("heading", { name: "Seven-milestone lifecycle" }),
+  ).toBeVisible();
+  await expect(page.locator(".milestone-report-grid > button")).toHaveCount(7);
+});

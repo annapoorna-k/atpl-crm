@@ -132,6 +132,7 @@ class Pursuit(RecordMixin, Base):
     opportunity: Mapped[Opportunity | None] = relationship(back_populates="pursuit", uselist=False)
     team: Mapped[list[TeamRole]] = relationship(back_populates="pursuit")
     stakeholders: Mapped[list[PursuitContact]] = relationship(back_populates="pursuit")
+    completed_actions: Mapped[list[PursuitAction]] = relationship(back_populates="pursuit")
 
 
 class Lead(RecordMixin, Base):
@@ -270,6 +271,20 @@ class Activity(RecordMixin, Base):
     contact: Mapped[Contact | None] = relationship()
     company: Mapped[Company] = relationship()
     created_by: Mapped[User | None] = relationship(foreign_keys="Activity.created_by_id")
+
+
+class PursuitAction(RecordMixin, Base):
+    __tablename__ = "crm_pursuitaction"
+    pursuit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_pursuit.id", ondelete="RESTRICT"), index=True)
+    summary: Mapped[str] = mapped_column(String(250))
+    action_type: Mapped[str] = mapped_column(String(40))
+    due_date: Mapped[date] = mapped_column(Date)
+    outcome: Mapped[str] = mapped_column(String(80))
+    note: Mapped[str] = mapped_column(Text, default="")
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    completed_by_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"))
+    pursuit: Mapped[Pursuit] = relationship(back_populates="completed_actions")
+    completed_by: Mapped[User] = relationship(foreign_keys=[completed_by_id])
 
 
 class PreSalesRequest(RecordMixin, Base):

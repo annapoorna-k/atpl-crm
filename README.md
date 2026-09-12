@@ -14,15 +14,16 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.5, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.6, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
 - Branded responsive overview, My Work, Needs Attention, lead/opportunity boards and lists, company/contact detail, pre-sales queue, basic reports and read-only configuration overview.
 - Database-backed company/contact creation and editing, lead creation, status changes, independent validation, nurture/disqualification and idempotent conversion.
 - Shared pursuit context preserves the original lead, source, contacts, team and timeline while keeping Lead and Opportunity separate objects and board populations.
-- Ball in Court, next-action validation, blocker owner/resolution, optimistic concurrency on work updates, stale/overdue flags and client-only interaction tracking.
-- Opportunity stage changes, required pre-sales roles, won/lost/hold validation, probability overrides, restricted commercial values and append-only value history.
+- Ball in Court, atomic action completion and future handoff, immutable completed-action history, blocker owner/resolution, optimistic concurrency, stale/overdue flags and client-only interaction tracking.
+- Drag-and-drop and accessible-select opportunity stage changes with evidence prompts, row locking and version-conflict protection; required pre-sales roles; won/lost/hold validation; probability overrides; restricted commercial values and append-only value history.
+- Seven-milestone lifecycle tracking on every pursuit, plus count, median working-day and health-target reporting.
 - Team assignments, pre-sales request creation/status updates, secure document-link registration, basic contact collision notifications and periodic attention/revisit notifications.
 - Administrator-managed local users, access levels, activation and password resets, plus configurable workflow labels, stage probabilities and exchange rates.
 - Tenant-scoped global search, mapped CSV previews and imports for companies, contacts and leads, downloadable templates/error reports, import history, exact-match duplicate review/merge and a data-quality dashboard.

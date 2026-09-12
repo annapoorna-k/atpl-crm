@@ -15,8 +15,8 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-25–26 | Lead create/board/list/filters | Partial | server-paginated list and primary filters implemented; remaining specialized filters pending |
 | FR-27–29 | Independent validation, preserving conversion, nurture | Partial | atplcrm/services.py and api.py; explicit alternate routing and configurable calendars pending |
 | FR-30 | Bulk assignment | Implemented | productivity.py and RecordList.tsx |
-| FR-35–36 | Pipeline and stage changes | Partial | cards and accessible stage selector; drag-and-drop pending |
-| FR-37–44 | Actions, blockers, engagement, scope, contacts, values, hold and milestones | Partial | stakeholder editing and primary-contact protection implemented; lifecycle metrics and remaining fields pending |
+| FR-35–36 | Pipeline and stage changes | Implemented | drag-and-drop cards and accessible selector in App.tsx; evidence, locking, version conflicts and audit history in api.py |
+| FR-37–44 | Actions, blockers, engagement, scope, contacts, values, hold and milestones | Partial | atomic action completion/handoff, immutable history, automatic timestamps, seven milestones, stakeholder editing and primary-contact protection implemented; remaining specialized fields/configurable calendars pending |
 | FR-45–46 | Filters and opportunity page | Partial | paginated primary filters and core page implemented; specialized filters and partner/document modules pending |
 | FR-47 | Probability override | Implemented | FastAPI opportunity action route and detail UI |
 | FR-48–50 | Won/lost/approval capture | Partial | stage evidence validation exists; complete capture and approval-recorded editor pending |
@@ -32,7 +32,7 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-95–96 | My Work / Needs Attention | Partial | core action/blocker screens; all requested exception types pending |
 | FR-97–100 | Pipeline, forecast, lead funnel, drill-down | Partial | overview and basic tables; time filters and historical funnel pending |
 | FR-101 | Report/list exports | Partial | visible forecast CSV only; full server/Excel export pending |
-| FR-102–107 | Role dashboards and advanced reports | Planned | generic overview exists |
+| FR-102–107 | Role dashboards and advanced reports | Partial | generic overview and seven-milestone bottleneck report exist; other role and advanced reports pending |
 | FR-110–115 | AI assistance | Planned | no provider connected or simulated AI claims |
 | NFR-01–10 | Hosting/security/backups/performance/residency/mobile/audit/observability/parity | Partial | local Compose, persistent volumes, guards, audit triggers, responsive layout and backup script; full acceptance remains pending |
 

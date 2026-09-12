@@ -82,6 +82,7 @@ export interface Pursuit {
   next_meeting: string | null;
   created_at: string;
   version: number;
+  milestones: { key: string; label: string; at: string | null }[];
   flags: string[];
   can_work: boolean;
   lead_id: string;
@@ -206,6 +207,16 @@ export interface Timeline {
     date: string;
     author: string;
   }[];
+  completed_actions: {
+    id: string;
+    summary: string;
+    action_type: string;
+    due_date: string;
+    outcome: string;
+    note: string;
+    completed_at: string;
+    completed_by: string;
+  }[];
   artifacts: {
     id: string;
     title: string;
@@ -217,4 +228,13 @@ export interface Timeline {
     shared_at: string | null;
   }[];
   restricted_content?: boolean;
+}
+
+export interface MilestoneReport {
+  key: string;
+  label: string;
+  count: number;
+  median_working_days: number | null;
+  target_working_days: number;
+  healthy: boolean;
 }
