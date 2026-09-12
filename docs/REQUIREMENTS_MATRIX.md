@@ -12,15 +12,15 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-18–19 | Import and duplicate resolution | Partial | mapped CSV dry-run/import/error history and exact duplicate merge are implemented; Excel, fuzzy rules and field-level merge choice remain |
 | FR-20 | Contact collision | Partial | warning/notification exists; prior-touch contextual prompt pending |
 | FR-21 | Universal search | Partial | tenant-scoped server search, type/owner/status/country filters and pagination implemented; ranked full-text indexes and saved recent searches remain |
-| FR-25–26 | Lead create/board/list/filters | Partial | web/src/App.tsx; full filter set pending |
+| FR-25–26 | Lead create/board/list/filters | Partial | server-paginated list and primary filters implemented; remaining specialized filters pending |
 | FR-27–29 | Independent validation, preserving conversion, nurture | Partial | atplcrm/services.py and api.py; explicit alternate routing and configurable calendars pending |
-| FR-30 | Bulk assignment | Planned | — |
+| FR-30 | Bulk assignment | Implemented | productivity.py and RecordList.tsx |
 | FR-35–36 | Pipeline and stage changes | Partial | cards and accessible stage selector; drag-and-drop pending |
-| FR-37–44 | Actions, blockers, engagement, scope, contacts, values, hold and milestones | Partial | atplcrm/models.py, services.py and api.py; full stakeholder editor and lifecycle metrics pending |
-| FR-45–46 | Filters and opportunity page | Partial | core page exists; all filters and completed partner/document modules pending |
+| FR-37–44 | Actions, blockers, engagement, scope, contacts, values, hold and milestones | Partial | stakeholder editing and primary-contact protection implemented; lifecycle metrics and remaining fields pending |
+| FR-45–46 | Filters and opportunity page | Partial | paginated primary filters and core page implemented; specialized filters and partner/document modules pending |
 | FR-47 | Probability override | Implemented | FastAPI opportunity action route and detail UI |
 | FR-48–50 | Won/lost/approval capture | Partial | stage evidence validation exists; complete capture and approval-recorded editor pending |
-| FR-51 | Saved views | Planned | — |
+| FR-51 | Saved views | Implemented | personal saved-view API and RecordList UI |
 | FR-55–57 | Deployment currency and fixed stored values | Partial | US currency enforcement and stored amounts; local/USD display toggle pending |
 | FR-58–60 | Rate changes/refresh/bulk re-baseline | Planned | — |
 | FR-65–68 | Partner terms/net value/warnings/report | Partial | base model and supported deduction calculation only |
@@ -36,4 +36,4 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-110–115 | AI assistance | Planned | no provider connected or simulated AI claims |
 | NFR-01–10 | Hosting/security/backups/performance/residency/mobile/audit/observability/parity | Partial | local Compose, persistent volumes, guards, audit triggers, responsive layout and backup script; full acceptance remains pending |
 
-The original full PRD and the step-by-step implementation plan remain the scope baseline. This matrix tracks the first increment only and must be updated as each remaining condition is implemented and verified.
+The original full PRD and the step-by-step implementation plan remain the scope baseline. This matrix tracks the implemented increments and must be updated as each remaining condition is delivered and verified.

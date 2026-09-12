@@ -212,6 +212,93 @@ test("manager searches and imports validated CRM data", async ({ page }) => {
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 });
 
+test("manager saves a pipeline view and assigns work in bulk", async ({
+  page,
+}) => {
+  const viewName = `High priority ${Date.now()}`;
+  await signIn(page, "alex");
+  await page.goto("/#pipeline");
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await expect(page.getByLabel("Search opportunities")).toBeVisible();
+  await page.getByLabel("List priority").selectOption("High");
+  await page.getByRole("button", { name: "+ Save current filters" }).click();
+  await page.getByLabel("Saved view name").fill(viewName);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: viewName, exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Clear", exact: false }).click();
+  await expect(page.getByLabel("List priority")).toHaveValue("");
+  await page.getByLabel("Select Predictive maintenance platform").check();
+  await page
+    .getByLabel("New Ball in Court holder")
+    .selectOption({ label: "Omar Hassan" });
+  await page
+    .getByLabel("Assignment reason")
+    .fill("Browser acceptance coverage");
+  await page
+    .getByRole("button", { name: "Apply assignment", exact: false })
+    .click();
+  await expect(page.getByText("1 pursuit assigned.")).toBeVisible();
+});
+
+test("manager adds and edits an opportunity stakeholder", async ({ page }) => {
+  const suffix = Date.now();
+  const firstName = "Browser";
+  const lastName = `Stakeholder ${suffix}`;
+  const fullName = `${firstName} ${lastName}`;
+  await signIn(page, "alex");
+  await page.goto("/#contacts");
+  await page.getByRole("button", { name: "Add contact", exact: true }).click();
+  const contactForm = page.getByRole("dialog");
+  await contactForm.getByLabel("First name").fill(firstName);
+  await contactForm.getByLabel("Last name").fill(lastName);
+  await contactForm
+    .getByLabel("Company", { exact: false })
+    .selectOption({ label: "Northstar Industries" });
+  await contactForm.getByLabel("Country").fill("United States");
+  const refreshedContacts = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/v1/bootstrap/") && response.ok(),
+  );
+  await contactForm
+    .getByRole("button", { name: "Save changes", exact: true })
+    .click();
+  await refreshedContacts;
+  await expect(page.getByText("Changes saved successfully.")).toBeVisible();
+  await page.goto("/#pipeline");
+  await page
+    .getByRole("button")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Predictive maintenance platform",
+        exact: true,
+      }),
+    })
+    .click();
+  await page
+    .getByRole("button", { name: "Team & contacts", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Add stakeholder" }).click();
+  const stakeholderForm = page.getByRole("dialog").last();
+  await stakeholderForm.getByLabel("Contact").selectOption({ label: fullName });
+  await stakeholderForm
+    .getByLabel("Relationship role")
+    .selectOption("Decision maker");
+  await stakeholderForm
+    .getByRole("button", { name: "Save changes", exact: true })
+    .click();
+  await expect(page.getByText(fullName, { exact: true })).toBeVisible();
+  const person = page.locator(".settings-person").filter({ hasText: fullName });
+  await person.getByRole("button", { name: "Edit", exact: true }).click();
+  const editForm = page.getByRole("dialog").last();
+  await editForm.getByLabel("Relationship role").selectOption("Champion");
+  await editForm
+    .getByRole("button", { name: "Save changes", exact: true })
+    .click();
+  await expect(person.getByText("Champion", { exact: true })).toBeVisible();
+});
+
 test("login recovers when another tab refreshes the CSRF cookie", async ({
   page,
   context,

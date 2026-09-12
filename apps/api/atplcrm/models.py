@@ -230,6 +230,18 @@ class ImportJob(RecordMixin, Base):
     errors: Mapped[list] = mapped_column(JSON, default=list)
 
 
+class SavedView(RecordMixin, Base):
+    __tablename__ = "crm_savedview"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "owner_id", "entity_type", "name", name="crm_savedview_owner_entity_name_uniq"),
+    )
+    owner_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="CASCADE"), index=True)
+    entity_type: Mapped[str] = mapped_column(String(30))
+    name: Mapped[str] = mapped_column(String(80))
+    filters: Mapped[dict] = mapped_column(JSON, default=dict)
+    owner: Mapped[User] = relationship(foreign_keys=[owner_id])
+
+
 class ValueHistory(RecordMixin, Base):
     __tablename__ = "crm_valuehistory"
     opportunity_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_opportunity.id", ondelete="RESTRICT"))

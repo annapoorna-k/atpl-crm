@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, model_validator
 
 
 class Input(BaseModel):
@@ -229,3 +229,37 @@ class ImportInput(Input):
 class MergeInput(Input):
     primary_id: UUID
     duplicate_id: UUID
+
+
+class SavedViewInput(Input):
+    entity_type: Literal["companies", "contacts", "leads", "opportunities"]
+    name: str = Field(min_length=1, max_length=80)
+    filters: dict[str, str | int | bool | None] = Field(default_factory=dict)
+
+
+class SavedViewPatch(Input):
+    name: str | None = Field(None, min_length=1, max_length=80)
+    filters: dict[str, str | int | bool | None] | None = None
+
+
+class BulkAssignmentInput(Input):
+    pursuit_ids: list[UUID] = Field(min_length=1, max_length=100)
+    versions: dict[str, int]
+    owner_id: int | None = None
+    holder_id: int | None = None
+    reason: str = Field(min_length=1, max_length=250)
+
+    @model_validator(mode="after")
+    def has_assignment(self):
+        if self.owner_id is None and self.holder_id is None:
+            raise ValueError("Choose a new owner, a new Ball in Court holder, or both.")
+        return self
+
+
+class StakeholderInput(Input):
+    contact_id: UUID
+    role: Literal["Champion", "Decision maker", "Influencer", "Procurement", "Technical", "Other"]
+
+
+class StakeholderPatch(Input):
+    role: Literal["Champion", "Decision maker", "Influencer", "Procurement", "Technical", "Other"]

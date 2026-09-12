@@ -6,12 +6,14 @@ from sqlalchemy.orm import Session
 from .api import router
 from .admin import router as admin_router
 from .data_tools import router as data_router
+from .productivity import router as productivity_router
 from .database import engine
 
-app = FastAPI(title="ATPLCRM API", version="0.4.1", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+app = FastAPI(title="ATPLCRM API", version="0.5.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
 app.include_router(router)
 app.include_router(admin_router)
 app.include_router(data_router)
+app.include_router(productivity_router)
 
 
 @app.exception_handler(RequestValidationError)

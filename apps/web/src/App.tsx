@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { api } from "./api";
 import { DataTools } from "./DataTools";
+import { RecordList } from "./RecordList";
 import type {
   Company,
   Contact,
@@ -1109,6 +1110,54 @@ export default function App() {
       submit: (v) => api(`opportunities/${r.opportunity_id}/team/`, "POST", v),
     });
   }
+  function stakeholderForm(
+    r: Pursuit,
+    stakeholder?: Pursuit["contacts"][number],
+  ) {
+    setForm({
+      title: stakeholder
+        ? `Edit ${stakeholder.name}`
+        : "Add client stakeholder",
+      description:
+        "Stakeholders must be contacts at this opportunity's client company.",
+      fields: [
+        ...(stakeholder
+          ? []
+          : [
+              field("contact_id", "Contact", {
+                options: d.contacts
+                  .filter(
+                    (contact) =>
+                      contact.company_id === r.company_id &&
+                      !r.contacts.some((item) => item.id === contact.id),
+                  )
+                  .map(
+                    (contact) => [contact.id, contact.name] as [string, string],
+                  ),
+              }),
+            ]),
+        field("role", "Relationship role", {
+          value: stakeholder?.role ?? "Influencer",
+          options: options([
+            "Champion",
+            "Decision maker",
+            "Influencer",
+            "Procurement",
+            "Technical",
+            "Other",
+          ]),
+        }),
+      ],
+      submit: (values) =>
+        api(
+          stakeholder
+            ? `productivity/stakeholders/${stakeholder.link_id}/`
+            : `productivity/pursuits/${r.id}/stakeholders/`,
+          stakeholder ? "PATCH" : "POST",
+          values,
+        ),
+    });
+  }
   const title =
     nav
       .map((g) => g.items.map(([key, label]) => ({ key, label })))
@@ -1288,7 +1337,7 @@ export default function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="workspace-health">
-            <span className="live-dot" /> Local workspace <Badge>v0.4.1</Badge>
+            <span className="live-dot" /> Local workspace <Badge>v0.5</Badge>
           </div>
           <button className="profile" onClick={() => go("settings")}>
             <Avatar name={d.user.name} />
@@ -1868,9 +1917,13 @@ export default function App() {
                 </div>
               </div>
               {pipelineView === "list" ? (
-                <section className="panel">
-                  {table(page === "pipeline" ? d.opportunities : d.leads)}
-                </section>
+                <RecordList
+                  entity={page === "pipeline" ? "opportunities" : "leads"}
+                  data={d}
+                  notify={setToast}
+                  onChanged={() => void load()}
+                  onOpen={(item) => openPursuit(item as Pursuit)}
+                />
               ) : (
                 <div className="kanban">
                   {(page === "pipeline"
@@ -1975,108 +2028,22 @@ export default function App() {
             </>
           )}
           {page === "companies" && (
-            <div className="company-grid">
-              {d.companies
-                .filter((c) => matches(`${c.name} ${c.industry} ${c.country}`))
-                .map((c) => (
-                  <button
-                    className="company-card"
-                    key={c.id}
-                    onClick={() => setCompanyId(c.id)}
-                  >
-                    <div className="company-card-top">
-                      <span className="company-logo">{initials(c.name)}</span>
-                      <Badge
-                        tone={c.company_type === "Client" ? "green" : "neutral"}
-                      >
-                        {c.company_type}
-                      </Badge>
-                    </div>
-                    <h2>{c.name}</h2>
-                    <p>{c.industry}</p>
-                    <div className="company-location">
-                      <Globe2 size={14} />
-                      {c.country}
-                    </div>
-                    <div className="company-card-bottom">
-                      <span>
-                        <strong>
-                          {
-                            d.contacts.filter((x) => x.company_id === c.id)
-                              .length
-                          }
-                        </strong>{" "}
-                        contacts
-                      </span>
-                      <span>
-                        <strong>
-                          {
-                            d.opportunities.filter((x) => x.company_id === c.id)
-                              .length
-                          }
-                        </strong>{" "}
-                        opportunities
-                      </span>
-                      <ArrowUpRight size={17} />
-                    </div>
-                  </button>
-                ))}
-            </div>
+            <RecordList
+              entity="companies"
+              data={d}
+              notify={setToast}
+              onChanged={() => void load()}
+              onOpen={(item) => setCompanyId((item as Company).id)}
+            />
           )}
           {page === "contacts" && (
-            <section className="panel">
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>CONTACT</th>
-                      <th>COMPANY</th>
-                      <th>EMAIL</th>
-                      <th>RELATIONSHIP OWNER</th>
-                      <th>ENGAGEMENT</th>
-                      <th>TOUCHES</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.contacts
-                      .filter((c) =>
-                        matches(`${c.name} ${c.company} ${c.email}`),
-                      )
-                      .map((c) => (
-                        <tr key={c.id}>
-                          <td>
-                            <button
-                              className="person record-name"
-                              onClick={() => setContactId(c.id)}
-                            >
-                              <Avatar name={c.name} />
-                              <span>
-                                {c.name}
-                                <small>{c.job_title}</small>
-                              </span>
-                            </button>
-                          </td>
-                          <td>{c.company}</td>
-                          <td>
-                            <a className="email" href={`mailto:${c.email}`}>
-                              {c.email}
-                            </a>
-                          </td>
-                          <td>{c.owner}</td>
-                          <td>
-                            <Badge tone={c.do_not_contact ? "orange" : "green"}>
-                              {c.do_not_contact
-                                ? "Do not contact"
-                                : c.engagement_status}
-                            </Badge>
-                          </td>
-                          <td>{c.touch_count}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <RecordList
+              entity="contacts"
+              data={d}
+              notify={setToast}
+              onChanged={() => void load()}
+              onOpen={(item) => setContactId((item as Contact).id)}
+            />
           )}
           {page === "presales" && (
             <>
@@ -2902,12 +2869,47 @@ export default function App() {
                         <Badge>{t.role}</Badge>
                       </div>
                     ))}
-                    <h3 className="spaced">Client stakeholders</h3>
+                    <div className="panel-heading stakeholder-heading">
+                      <h3>Client stakeholders</h3>
+                      {p.opportunity_id && p.can_work && (
+                        <button
+                          className="button secondary"
+                          onClick={() => stakeholderForm(p)}
+                        >
+                          <Plus size={14} /> Add stakeholder
+                        </button>
+                      )}
+                    </div>
                     {p.contacts.map((c) => (
                       <div className="settings-person" key={c.id}>
                         <Avatar name={c.name} />
-                        <strong>{c.name}</strong>
+                        <span>
+                          <strong>{c.name}</strong>
+                          <small>{c.job_title || c.email}</small>
+                        </span>
                         <Badge>{c.role}</Badge>
+                        {p.can_work && (
+                          <span className="stakeholder-actions">
+                            <button
+                              className="text-button"
+                              onClick={() => stakeholderForm(p, c)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="text-button danger"
+                              onClick={() =>
+                                mutate(
+                                  `productivity/stakeholders/${c.link_id}/`,
+                                  undefined,
+                                  "DELETE",
+                                )
+                              }
+                            >
+                              Remove
+                            </button>
+                          </span>
+                        )}
                       </div>
                     ))}
                   </>

@@ -1,4 +1,4 @@
-# ATPLCRM v0.4.1 delivery status
+# ATPLCRM v0.5 delivery status
 
 This release starts the implementation plan and delivers an executable core. It does not mark all phases complete.
 
@@ -13,6 +13,9 @@ This release starts the implementation plan and delivers an executable core. It 
 - CSV templates, field mapping, dry-run validation, partial imports with error reports and audit/history for companies, contacts and leads.
 - Tenant-scoped universal search with type/owner/status/country filters and pagination, duplicate review/merge, and a data-quality score with actionable record issues.
 - Automatic one-time CSRF refresh and request recovery when another browser tab rotates the workspace cookie during login or an authenticated action.
+- Server-side pagination, filtering and sorting for the four main record lists, plus private saved views for each user.
+- Manager bulk owner/Ball-in-Court assignment with audit history and optimistic conflict handling.
+- Opportunity stakeholder add, role edit and removal workflows, restricted to same-company contacts and protecting the primary contact.
 - FastAPI workflow tests, TypeScript/production UI build, plus Docker/PostgreSQL and browser verification as recorded in VERIFICATION.md.
 
 ## Deliberate limits and remaining work
@@ -21,14 +24,14 @@ This release starts the implementation plan and delivers an executable core. It 
 | Identity | Real Entra OIDC, local OIDC provider replacement for temporary demo password login, provisioned-user lifecycle and stronger login rate limiting. |
 | Administration | Fine-grained permission policies and connected-identity provisioning. Local users, global access levels, activation, password resets, reference options, stage probabilities and rates are editable now. |
 | Schema | Remaining partner agreement scope/evidence fields, artifact/email/share fields and delivery fields; complete database-level role/tenant constraints and separate runtime/migration privileges. |
-| Data entry | Excel imports, background processing beyond the current 5,000-row CSV limit, bulk assignment, fuzzy duplicate matching, field-level merge selection, contact engagement updates, editable stakeholders and opportunity business fields. |
-| Pipeline | Drag-and-drop interaction (accessible select movement works now), saved views, all specified filters, action completion flow, full stage-edit concurrency and seven-milestone reporting. |
+| Data entry | Excel imports, background processing beyond the current 5,000-row CSV limit, fuzzy duplicate matching, field-level merge selection, contact engagement updates and remaining opportunity business fields. |
+| Pipeline | Drag-and-drop interaction (accessible select movement works now), remaining specialized filters, action completion flow, full stage-edit concurrency and seven-milestone reporting. |
 | Commercial | Partner-term UI/calculation coverage, rate-update UI/API and refresh, probability snapshot semantics, complete won/lost/handoff fields and approval evidence. Unknown partner formulas currently make net value unavailable rather than inflating it. |
 | Activity | Full paginated contact/company histories; current bootstrap returns the latest 50 permitted activities. Future meetings and completed interactions remain separate. |
 | Documents | Real upload/storage adapter, Outlook add-in, email linking/attachments, sharing approval/recipients/register, artifact version supersession and reusable library. Basic HTTPS evidence links work. |
 | Pre-sales | Full transition matrix, review evidence gate, contributors, per-person weekly capacity and cost analytics. Basic assignee/manager status rules work. |
 | Reports | Monthly/quarterly filters, loss/bottleneck/blocker/value-erosion/partner/movement analysis, individual performance, server exports, Excel support and configuration parity. Current lead chart is status distribution, not historical conversion analytics. |
-| Search/scale | Search-specific PostgreSQL indexes/full-text ranking, saved searches, stale-data/query caching and documented 20k/5k/5k performance acceptance. Universal search now paginates on the server; other list screens still use the bootstrap dataset. |
+| Search/scale | Search-specific PostgreSQL indexes/full-text ranking, recent-search history, stale-data/query caching and documented 20k/5k/5k performance acceptance. Universal search and the four main record lists paginate on the server. |
 | Notifications | Preferences, complete recipient/escalation rules, scheduled summaries, failure monitoring and durable delivery history. Current worker refreshes basic reminders every five minutes. |
 | AI | Entire approved Azure adapter, grounded summaries/extraction, consent/review UI and evaluations. No fake AI buttons. |
 | Release quality | Full accessibility contrast/screen-reader audit, visual regression baselines, CI/security scanning, resource limits, image-digest pinning, rotation/retention, restore rehearsal and production deployment. |
@@ -45,6 +48,5 @@ This release starts the implementation plan and delivers an executable core. It 
 ## Next implementation order
 
 1. Entra/OIDC; complete record/field authorization matrix and runtime database privileges.
-2. Stakeholder editing, bulk assignment, saved views and complete list pagination/filter acceptance.
-3. Partners/currencies, complete reports, pre-sales review gates and document/Microsoft integrations.
-4. Notifications/operations, AI, hardening and production/connected acceptance.
+2. Partners/currencies, complete reports, pre-sales review gates and document/Microsoft integrations.
+3. Notifications/operations, AI, hardening and production/connected acceptance.

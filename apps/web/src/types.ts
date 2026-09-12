@@ -87,7 +87,14 @@ export interface Pursuit {
   lead_id: string;
   opportunity_id: string | null;
   team: { user_id: number; name: string; role: string }[];
-  contacts: { id: string; name: string; role: string }[];
+  contacts: {
+    link_id: string;
+    id: string;
+    name: string;
+    role: string;
+    job_title: string;
+    email: string;
+  }[];
   values_visible: boolean;
   status?: string;
   area_of_interest?: string;

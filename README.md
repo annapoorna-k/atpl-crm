@@ -14,7 +14,7 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.4.1, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.5, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
@@ -26,10 +26,12 @@ This is **v0.4.1, an initial working core**, using synthetic data and local pass
 - Team assignments, pre-sales request creation/status updates, secure document-link registration, basic contact collision notifications and periodic attention/revisit notifications.
 - Administrator-managed local users, access levels, activation and password resets, plus configurable workflow labels, stage probabilities and exchange rates.
 - Tenant-scoped global search, mapped CSV previews and imports for companies, contacts and leads, downloadable templates/error reports, import history, exact-match duplicate review/merge and a data-quality dashboard.
+- Server-paginated company, contact, lead and opportunity lists with search, owner, workflow, priority, country and sort controls; reusable personal saved views; manager-only bulk owner/Ball-in-Court assignment with audit and concurrent-edit protection.
+- Editable opportunity stakeholders with company-bound contact selection, relationship roles, and protection against removing the active primary contact.
 - Net USD pipeline and weighted totals, lead status distribution, CSV forecast export with spreadsheet-injection escaping.
 - Tenant-scoped APIs, session/CSRF protection, non-root app/web containers, persistent database/queue volumes, migration-before-start dependencies.
 
-See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. The current full-workspace bootstrap API is intended for the seeded/early dataset; broader API pagination, full analytics and scale benchmarks are still required.
+See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. The dashboard bootstrap API is intended for the seeded/early dataset; full activity pagination, analytics and scale benchmarks are still required.
 
 ## Verify
 
