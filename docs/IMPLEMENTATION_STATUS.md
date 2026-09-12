@@ -1,4 +1,4 @@
-# ATPLCRM v0.6 delivery status
+# ATPLCRM v0.7 delivery status
 
 This release starts the implementation plan and delivers an executable core. It does not mark all phases complete.
 
@@ -19,6 +19,8 @@ This release starts the implementation plan and delivers an executable core. It 
 - Pipeline drag-and-drop with accessible select fallback, evidence capture, locked/version-protected stage transitions and automatic lifecycle timestamps.
 - Atomic action completion that preserves immutable history and requires a new owner, action, type and future due date.
 - Seven milestone pursuit timeline and aggregate count/median working-day health report.
+- Complete server-backed My Work and Needs Attention exception queues, including actions, blockers and pre-sales deliverables.
+- User-configurable exception notifications with durable history, PRD recipient/escalation routing, Monday leadership summaries and visible automation health.
 - FastAPI workflow tests, TypeScript/production UI build, plus Docker/PostgreSQL and browser verification as recorded in VERIFICATION.md.
 
 ## Deliberate limits and remaining work
@@ -35,7 +37,7 @@ This release starts the implementation plan and delivers an executable core. It 
 | Pre-sales | Full transition matrix, review evidence gate, contributors, per-person weekly capacity and cost analytics. Basic assignee/manager status rules work. |
 | Reports | Monthly/quarterly filters, loss/blocker/value-erosion/partner/movement analysis, individual performance, server exports, Excel support and configuration parity. Lifecycle bottlenecks use the current weekday calendar; the lead chart is status distribution, not historical conversion analytics. |
 | Search/scale | Search-specific PostgreSQL indexes/full-text ranking, recent-search history, stale-data/query caching and documented 20k/5k/5k performance acceptance. Universal search and the four main record lists paginate on the server. |
-| Notifications | Preferences, complete recipient/escalation rules, scheduled summaries, failure monitoring and durable delivery history. Current worker refreshes basic reminders every five minutes. |
+| Notifications | Core local phase complete: preferences, recipient/escalation rules, 15-minute scans, Monday summaries, failure alerts, durable in-app history and automation monitoring are implemented. External email/mobile channels may be added only if later required. |
 | AI | Entire approved Azure adapter, grounded summaries/extraction, consent/review UI and evaluations. No fake AI buttons. |
 | Release quality | Full accessibility contrast/screen-reader audit, visual regression baselines, CI/security scanning, resource limits, image-digest pinning, rotation/retention, restore rehearsal and production deployment. |
 

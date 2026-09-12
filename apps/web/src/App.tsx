@@ -52,6 +52,9 @@ import type {
   Timeline,
   AdminReference,
   MilestoneReport,
+  NotificationPreference,
+  WorkQueues,
+  AutomationStatus,
 } from "./types";
 
 const money = (
@@ -409,7 +412,13 @@ export default function App() {
     [ownerFilter, setOwnerFilter] = useState("all"),
     [pipelineView, setPipelineView] = useState("board"),
     [draggedPursuit, setDraggedPursuit] = useState<Pursuit | null>(null),
-    [milestoneReport, setMilestoneReport] = useState<MilestoneReport[]>([]);
+    [milestoneReport, setMilestoneReport] = useState<MilestoneReport[]>([]),
+    [workQueues, setWorkQueues] = useState<WorkQueues | null>(null),
+    [notificationPreferences, setNotificationPreferences] =
+      useState<NotificationPreference | null>(null),
+    [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(
+      null,
+    );
   const detailRef = useRef<HTMLDialogElement>(null);
   async function load() {
     try {
@@ -456,6 +465,24 @@ export default function App() {
         .then(setMilestoneReport)
         .catch((e) => setToast(e.message));
   }, [page, session, data]);
+  useEffect(() => {
+    if (session && ["work", "attention"].includes(page)) {
+      setWorkQueues(null);
+      api<WorkQueues>("work/")
+        .then(setWorkQueues)
+        .catch((e) => setToast(e.message));
+    }
+  }, [page, session, data]);
+  useEffect(() => {
+    if (session && (page === "settings" || notifications)) {
+      api<NotificationPreference>("notifications/preferences/")
+        .then(setNotificationPreferences)
+        .catch((e) => setToast(e.message));
+      api<AutomationStatus>("notifications/status/")
+        .then(setAutomationStatus)
+        .catch((e) => setToast(e.message));
+    }
+  }, [page, session, notifications, data]);
   useEffect(() => {
     if (selected || companyId || contactId) detailRef.current?.showModal();
   }, [selected, companyId, contactId]);
@@ -1049,6 +1076,54 @@ export default function App() {
         }),
     });
   }
+  function notificationPreferenceForm() {
+    const prefs = notificationPreferences;
+    if (!prefs) return;
+    const enabled = (value: boolean): [string, string][] => [
+      ["true", "Enabled"],
+      ["false", "Muted"],
+    ];
+    setForm({
+      title: "Notification preferences",
+      description:
+        "Choose which exception alerts you receive. Critical records remain visible in My Work and Needs Attention.",
+      fields: [
+        ...[
+          ["due_actions", "Due and overdue actions"],
+          ["stalled_pursuits", "Ball in Court held over 14 days"],
+          ["blockers", "Blockers unresolved over 10 days"],
+          ["inactivity", "Client inactivity"],
+          ["proposal_followup", "Proposal follow-up"],
+          ["validation", "Validation ageing"],
+          ["presales", "Pre-sales deadlines"],
+          ["close_dates", "Expected close dates"],
+          ["revisits", "Nurture and on-hold revisits"],
+          ["system_failures", "Automation failures"],
+          ["weekly_summary", "Monday leadership summary"],
+        ].map(([name, label]) =>
+          field(name, label, {
+            options: enabled(
+              prefs[name as keyof NotificationPreference] as boolean,
+            ),
+            value: String(prefs[name as keyof NotificationPreference]),
+          }),
+        ),
+        field("inactivity_days", "Client inactivity threshold (days)", {
+          type: "number",
+          value: String(prefs.inactivity_days),
+        }),
+        field("proposal_followup_days", "Proposal follow-up threshold (days)", {
+          type: "number",
+          value: String(prefs.proposal_followup_days),
+        }),
+        field("close_notice_days", "Close-date warning window (days)", {
+          type: "number",
+          value: String(prefs.close_notice_days),
+        }),
+      ],
+      submit: (values) => api("notifications/preferences/", "PATCH", values),
+    });
+  }
   function requestForm() {
     setForm({
       title: "Request pre-sales work",
@@ -1377,7 +1452,7 @@ export default function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="workspace-health">
-            <span className="live-dot" /> Local workspace <Badge>v0.6</Badge>
+            <span className="live-dot" /> Local workspace <Badge>v0.7</Badge>
           </div>
           <button className="profile" onClick={() => go("settings")}>
             <Avatar name={d.user.name} />
@@ -1458,12 +1533,20 @@ export default function App() {
           <section className="notification-panel">
             <div className="panel-heading">
               <h3>Notifications</h3>
-              <button
-                className="text-button"
-                onClick={() => mutate("notifications/read/", {})}
-              >
-                Mark all read
-              </button>
+              <span className="notification-actions">
+                <button
+                  className="text-button"
+                  onClick={notificationPreferenceForm}
+                >
+                  Preferences
+                </button>
+                <button
+                  className="text-button"
+                  onClick={() => mutate("notifications/read/", {})}
+                >
+                  Mark all read
+                </button>
+              </span>
             </div>
             {d.notifications.length ? (
               d.notifications.map((n) => (
@@ -1471,14 +1554,21 @@ export default function App() {
                   key={n.id}
                   className={`notification-item ${n.read ? "read" : ""}`}
                   onClick={() => {
+                    if (!n.read)
+                      void api(`notifications/${n.id}/read/`, "POST", {}).then(
+                        () => void load(),
+                      );
                     if (n.pursuit_id) setSelected(n.pursuit_id);
                     setNotifications(false);
                   }}
                 >
                   <Bell size={15} />
                   <span>
-                    {n.message}
-                    <small>{date(n.created_at)}</small>
+                    <Badge tone={n.severity === "high" ? "orange" : "neutral"}>
+                      {n.category.replaceAll("_", " ")}
+                    </Badge>
+                    <strong>{n.message}</strong>
+                    <small>{date(n.created_at)} · In-app delivered</small>
                   </span>
                 </button>
               ))
@@ -1794,124 +1884,172 @@ export default function App() {
               </div>
             </>
           )}
-          {(page === "work" || page === "attention") && (
-            <>
-              <div className="mini-stats">
-                <div>
-                  <Clock3 size={20} />
-                  <span>
-                    <strong>
-                      {
-                        (page === "work" ? held : attention).filter(
-                          (p) => p.action_date < d.today,
-                        ).length
-                      }
-                    </strong>{" "}
-                    Overdue actions
-                  </span>
+          {(page === "work" || page === "attention") &&
+            (workQueues ? (
+              <>
+                <div className="mini-stats">
+                  <div>
+                    <Clock3 size={20} />
+                    <span>
+                      <strong>
+                        {workQueues.my_work.overdue_actions.length}
+                      </strong>{" "}
+                      Overdue actions
+                    </span>
+                  </div>
+                  <div>
+                    <CalendarDays size={20} />
+                    <span>
+                      <strong>{workQueues.my_work.today_actions.length}</strong>{" "}
+                      Due today
+                    </span>
+                  </div>
+                  <div>
+                    <AlertCircle size={20} />
+                    <span>
+                      <strong>
+                        {page === "work"
+                          ? workQueues.my_work.blockers.length
+                          : workQueues.needs_attention.length}
+                      </strong>{" "}
+                      {page === "work" ? "Blockers you own" : "Exceptions"}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <CalendarDays size={20} />
-                  <span>
-                    <strong>
-                      {held.filter((p) => p.action_date === d.today).length}
-                    </strong>{" "}
-                    Due today
-                  </span>
-                </div>
-                <div>
-                  <AlertCircle size={20} />
-                  <span>
-                    <strong>
-                      {
-                        (page === "work"
-                          ? active.filter(
-                              (p) => p.blocker_owner_id === d.user.id,
-                            )
-                          : attention
-                        ).filter((p) => p.blocker !== "None").length
-                      }
-                    </strong>{" "}
-                    Open blockers
-                  </span>
-                </div>
-              </div>
-              <section className="panel">
-                <div className="panel-heading">
-                  <h2>
-                    {page === "work"
-                      ? "Your next actions"
-                      : "Pursuits needing attention"}
-                  </h2>
-                  <Badge>
-                    {page === "work" ? held.length : attention.length} pursuits
-                  </Badge>
-                </div>
-                {table(page === "work" ? held : attention)}
-              </section>
-              {page === "work" && (
-                <div className="overview-bottom">
+                {page === "work" ? (
+                  <>
+                    {[
+                      ["Overdue actions", workQueues.my_work.overdue_actions],
+                      ["Due today", workQueues.my_work.today_actions],
+                      ["Upcoming actions", workQueues.my_work.upcoming_actions],
+                    ].map(([label, rows]) => (
+                      <section
+                        className="panel work-section"
+                        key={label as string}
+                      >
+                        <div className="panel-heading">
+                          <h2>{label as string}</h2>
+                          <Badge>{(rows as Pursuit[]).length}</Badge>
+                        </div>
+                        {(rows as Pursuit[]).length ? (
+                          table(rows as Pursuit[])
+                        ) : (
+                          <Empty
+                            title={`No ${(label as string).toLowerCase()}`}
+                            text="Nothing requires action in this section."
+                          />
+                        )}
+                      </section>
+                    ))}
+                    <div className="overview-bottom">
+                      <section className="panel">
+                        <div className="panel-heading">
+                          <h2>Blockers you own</h2>
+                          <Badge>{workQueues.my_work.blockers.length}</Badge>
+                        </div>
+                        {workQueues.my_work.blockers.map((record) => (
+                          <button
+                            className="blocker-item"
+                            key={record.id}
+                            onClick={() => openPursuit(record)}
+                          >
+                            <AlertCircle size={18} />
+                            <span>
+                              <strong>{record.blocker}</strong>
+                              <small>
+                                {record.name} · {record.resolution_action}
+                              </small>
+                            </span>
+                          </button>
+                        ))}
+                        {!workQueues.my_work.blockers.length && (
+                          <Empty
+                            title="No blockers assigned"
+                            text="You have no blockers to resolve right now."
+                          />
+                        )}
+                      </section>
+                      <section className="panel">
+                        <div className="panel-heading">
+                          <h2>Your deliverables</h2>
+                          <Badge>
+                            {workQueues.my_work.deliverables.length}
+                          </Badge>
+                        </div>
+                        {workQueues.my_work.deliverables.map((request) => (
+                          <button
+                            className="request-mini"
+                            key={request.id}
+                            onClick={() => updateRequest(request)}
+                          >
+                            <FileText size={17} />
+                            <span>
+                              <strong>{request.title}</strong>
+                              <small>Due {date(request.needed_by)}</small>
+                            </span>
+                            <Badge>{request.status}</Badge>
+                          </button>
+                        ))}
+                        {!workQueues.my_work.deliverables.length && (
+                          <Empty
+                            title="No assigned deliverables"
+                            text="Your next pre-sales request will appear here."
+                          />
+                        )}
+                      </section>
+                    </div>
+                  </>
+                ) : (
                   <section className="panel">
                     <div className="panel-heading">
-                      <h2>Blockers you own</h2>
+                      <div>
+                        <h2>Needs Attention</h2>
+                        <p>
+                          Each exception remains visible until the underlying
+                          record is corrected.
+                        </p>
+                      </div>
+                      <Badge tone="orange">
+                        {workQueues.needs_attention.length} exceptions
+                      </Badge>
                     </div>
-                    {active
-                      .filter((p) => p.blocker_owner_id === d.user.id)
-                      .map((r) => (
+                    <div className="attention-list">
+                      {workQueues.needs_attention.map((issue) => (
                         <button
-                          className="blocker-item"
-                          key={r.id}
-                          onClick={() => openPursuit(r)}
+                          key={issue.key}
+                          onClick={() =>
+                            issue.pursuit
+                              ? openPursuit(issue.pursuit)
+                              : issue.request && updateRequest(issue.request)
+                          }
                         >
-                          <AlertCircle size={18} />
+                          <span className={`severity ${issue.severity}`}>
+                            {issue.severity}
+                          </span>
                           <span>
-                            <strong>{r.blocker}</strong>
+                            <strong>{issue.label}</strong>
                             <small>
-                              {r.name} · {r.resolution_action}
+                              {issue.pursuit
+                                ? `${issue.pursuit.name} · ${issue.pursuit.company}`
+                                : `${issue.request?.title} · ${issue.request?.opportunity}`}
                             </small>
                           </span>
+                          <ArrowRight size={15} />
                         </button>
                       ))}
-                    {!active.some((p) => p.blocker_owner_id === d.user.id) && (
-                      <Empty
-                        title="No blockers assigned"
-                        text="You have no blockers to resolve right now."
-                      />
-                    )}
-                  </section>
-                  <section className="panel">
-                    <div className="panel-heading">
-                      <h2>Your deliverables</h2>
+                      {!workQueues.needs_attention.length && (
+                        <Empty
+                          title="Nothing needs attention"
+                          text="There are no active exceptions in this workspace."
+                        />
+                      )}
                     </div>
-                    {d.requests
-                      .filter((r) => r.assigned_to_id === d.user.id)
-                      .map((r) => (
-                        <button
-                          className="request-mini"
-                          key={r.id}
-                          onClick={() => updateRequest(r)}
-                        >
-                          <FileText size={17} />
-                          <span>
-                            <strong>{r.title}</strong>
-                            <small>{date(r.needed_by)}</small>
-                          </span>
-                          <Badge>{r.status}</Badge>
-                        </button>
-                      ))}
-                    {!d.requests.some(
-                      (r) => r.assigned_to_id === d.user.id,
-                    ) && (
-                      <Empty
-                        title="No assigned deliverables"
-                        text="Your next pre-sales request will appear here."
-                      />
-                    )}
                   </section>
-                </div>
-              )}
-            </>
-          )}
+                )}
+              </>
+            ) : (
+              <LoaderCircle className="spin" />
+            ))}
           {(page === "pipeline" || page === "leads") && (
             <>
               <div className="view-toolbar">
@@ -2460,6 +2598,93 @@ export default function App() {
                       )}
                     </div>
                   ))}
+                </section>
+              </div>
+              <div className="overview-bottom notification-settings">
+                <section className="panel">
+                  <div className="panel-heading">
+                    <div>
+                      <h2>Notification preferences</h2>
+                      <p>
+                        Exception alerts stay useful when each person controls
+                        what reaches their inbox.
+                      </p>
+                    </div>
+                    <Bell size={18} />
+                  </div>
+                  <div className="settings-note">
+                    {notificationPreferences
+                      ? `${Object.entries(notificationPreferences).filter(([key, value]) => typeof value === "boolean" && value && key !== "weekly_summary").length} exception categories enabled · ${notificationPreferences.inactivity_days}-day inactivity threshold`
+                      : "Loading your preferences…"}
+                  </div>
+                  <button
+                    className="button secondary"
+                    disabled={!notificationPreferences}
+                    onClick={notificationPreferenceForm}
+                  >
+                    <Settings2 size={15} /> Manage preferences
+                  </button>
+                </section>
+                <section className="panel">
+                  <div className="panel-heading">
+                    <div>
+                      <h2>Notification automation</h2>
+                      <p>
+                        Exception scanning runs every 15 minutes; leadership
+                        summaries run Monday at 07:00 UTC.
+                      </p>
+                    </div>
+                    <Badge
+                      tone={
+                        automationStatus?.latest?.status === "Failed"
+                          ? "orange"
+                          : "green"
+                      }
+                    >
+                      {automationStatus?.latest?.status ?? "Waiting"}
+                    </Badge>
+                  </div>
+                  <div className="automation-status">
+                    <strong>
+                      {automationStatus?.latest?.task_name ??
+                        "No recorded run yet"}
+                    </strong>
+                    <span>
+                      {automationStatus?.latest
+                        ? `${date(automationStatus.latest.finished_at)} · ${automationStatus.latest.created_count} alerts created`
+                        : "The scheduler will record its first completed run here."}
+                    </span>
+                    {automationStatus?.latest?.detail && (
+                      <small>{automationStatus.latest.detail}</small>
+                    )}
+                  </div>
+                  {d.user.level === "Administrator" && (
+                    <button
+                      className="button secondary"
+                      onClick={async () => {
+                        try {
+                          const result = await api<{ created: number }>(
+                            "notifications/refresh/",
+                            "POST",
+                            {},
+                          );
+                          setToast(
+                            `${result.created} new notifications created.`,
+                          );
+                          setAutomationStatus(
+                            await api<AutomationStatus>(
+                              "notifications/status/",
+                            ),
+                          );
+                          void load();
+                        } catch (e) {
+                          setToast((e as Error).message);
+                        }
+                      }}
+                    >
+                      <Sparkles size={15} /> Run exception scan
+                    </button>
+                  )}
                 </section>
               </div>
               <section className="panel admin-reference-panel">

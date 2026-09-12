@@ -29,11 +29,12 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-81 | Pre-sales cost | Planned | — |
 | FR-85 | Artifact attachments | Partial | secure document links only |
 | FR-86–92 | Outlook linking, sharing register, versions, library | Planned | — |
-| FR-95–96 | My Work / Needs Attention | Partial | core action/blocker screens; all requested exception types pending |
+| FR-95–96 | My Work / Needs Attention | Implemented | server-backed action, blocker and deliverable queues plus all specified exception categories in notifications.py and App.tsx |
 | FR-97–100 | Pipeline, forecast, lead funnel, drill-down | Partial | overview and basic tables; time filters and historical funnel pending |
 | FR-101 | Report/list exports | Partial | visible forecast CSV only; full server/Excel export pending |
 | FR-102–107 | Role dashboards and advanced reports | Partial | generic overview and seven-milestone bottleneck report exist; other role and advanced reports pending |
 | FR-110–115 | AI assistance | Planned | no provider connected or simulated AI claims |
+| Section 13 | Exception notifications and alerts | Implemented | per-user preferences, configurable thresholds, recipient/escalation rules, durable history, 15-minute scans, Monday leadership summaries and automation failure monitoring |
 | NFR-01–10 | Hosting/security/backups/performance/residency/mobile/audit/observability/parity | Partial | local Compose, persistent volumes, guards, audit triggers, responsive layout and backup script; full acceptance remains pending |
 
 The original full PRD and the step-by-step implementation plan remain the scope baseline. This matrix tracks the implemented increments and must be updated as each remaining condition is delivered and verified.

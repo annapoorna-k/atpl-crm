@@ -348,7 +348,41 @@ class Notification(RecordMixin, Base):
     pursuit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_pursuit.id", ondelete="RESTRICT"), nullable=True)
     message: Mapped[str] = mapped_column(String(250))
     key: Mapped[str] = mapped_column(String(200))
+    category: Mapped[str] = mapped_column(String(40), default="general", index=True)
+    severity: Mapped[str] = mapped_column(String(20), default="info")
     read: Mapped[bool] = mapped_column(Boolean, default=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class NotificationPreference(RecordMixin, Base):
+    __tablename__ = "crm_notificationpreference"
+    __table_args__ = (UniqueConstraint("tenant_id", "user_id", name="crm_notificationpreference_tenant_user_uniq"),)
+    user_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="CASCADE"), index=True)
+    due_actions: Mapped[bool] = mapped_column(Boolean, default=True)
+    stalled_pursuits: Mapped[bool] = mapped_column(Boolean, default=True)
+    blockers: Mapped[bool] = mapped_column(Boolean, default=True)
+    inactivity: Mapped[bool] = mapped_column(Boolean, default=True)
+    proposal_followup: Mapped[bool] = mapped_column(Boolean, default=True)
+    validation: Mapped[bool] = mapped_column(Boolean, default=True)
+    presales: Mapped[bool] = mapped_column(Boolean, default=True)
+    close_dates: Mapped[bool] = mapped_column(Boolean, default=True)
+    revisits: Mapped[bool] = mapped_column(Boolean, default=True)
+    system_failures: Mapped[bool] = mapped_column(Boolean, default=True)
+    weekly_summary: Mapped[bool] = mapped_column(Boolean, default=True)
+    inactivity_days: Mapped[int] = mapped_column(Integer, default=21)
+    proposal_followup_days: Mapped[int] = mapped_column(Integer, default=7)
+    close_notice_days: Mapped[int] = mapped_column(Integer, default=7)
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
+
+
+class AutomationRun(RecordMixin, Base):
+    __tablename__ = "crm_automationrun"
+    task_name: Mapped[str] = mapped_column(String(80), index=True)
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_count: Mapped[int] = mapped_column(Integer, default=0)
+    detail: Mapped[str] = mapped_column(Text, default="")
 
 
 class AppSession(Base):

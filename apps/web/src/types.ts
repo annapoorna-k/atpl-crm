@@ -175,7 +175,10 @@ export interface Data {
   notifications: {
     id: string;
     message: string;
+    category: string;
+    severity: string;
     read: boolean;
+    read_at: string | null;
     pursuit_id: string | null;
     created_at: string;
   }[];
@@ -237,4 +240,49 @@ export interface MilestoneReport {
   median_working_days: number | null;
   target_working_days: number;
   healthy: boolean;
+}
+
+export interface NotificationPreference {
+  due_actions: boolean;
+  stalled_pursuits: boolean;
+  blockers: boolean;
+  inactivity: boolean;
+  proposal_followup: boolean;
+  validation: boolean;
+  presales: boolean;
+  close_dates: boolean;
+  revisits: boolean;
+  system_failures: boolean;
+  weekly_summary: boolean;
+  inactivity_days: number;
+  proposal_followup_days: number;
+  close_notice_days: number;
+}
+
+export interface WorkQueues {
+  my_work: {
+    overdue_actions: Pursuit[];
+    today_actions: Pursuit[];
+    upcoming_actions: Pursuit[];
+    blockers: Pursuit[];
+    deliverables: Request[];
+  };
+  needs_attention: {
+    key: string;
+    kind: string;
+    label: string;
+    severity: string;
+    pursuit: Pursuit | null;
+    request: Request | null;
+  }[];
+}
+
+export interface AutomationStatus {
+  latest: {
+    task_name: string;
+    status: string;
+    created_count: number;
+    finished_at: string;
+    detail: string;
+  } | null;
 }

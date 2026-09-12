@@ -1,21 +1,22 @@
-# ATPLCRM v0.6 verification
+# ATPLCRM v0.7 verification
 
-Verified locally on 12 September 2026.
+Verified locally on 13 September 2026.
 
 | Check | Result |
 |---|---|
-| FastAPI workflow, administration, data-tools, productivity and pipeline suite | 27 passed |
+| FastAPI workflow, administration, data-tools, productivity, pipeline and notification suite | 31 passed |
 | React formatting | Passed |
 | TypeScript and Vite production build | Passed, 1,582 modules transformed |
 | Isolated Chrome acceptance suite | 9 passed |
-| International Chrome acceptance suite | 9 passed |
-| US Chrome acceptance suite | 9 passed |
-| Health and API version | HTTP 200 and `0.6.0` on both instances |
-| PostgreSQL migration | `0005_pipeline` on isolated and both persistent instances |
+| Isolated Work/Attention/notification acceptance journey | 1 passed |
+| International Chrome acceptance | Focused Work/Attention/notification journey passed against the persistent deployment |
+| US deployment acceptance | Health, application version, migration and service checks passed |
+| Health and API version | HTTP 200 and `0.7.0` in isolated, International and US deployments |
+| PostgreSQL migration | `0006_notifications` in isolated, International and US databases |
 | Immutable database history guards | Audit events, value history and completed actions protected in both PostgreSQL instances |
 | Tenant/currency isolation | International: AED, BHD, EUR, GBP, INR, SAR, USD; US: USD only |
 | Runtime services | API, database, Redis, scheduler, web and worker running in both instances |
 
-The browser suite covers all routes, opportunity detail/timeline/value views, lead creation and independent conversion, phone layout, administrator management, validated import and search, CSRF recovery, personal saved views, manager bulk assignment, opportunity stakeholder creation/editing, drag-and-drop stage evidence, action completion and seven-milestone views. The API suite additionally covers saved-view privacy, server pagination/filtering/sorting, bulk-assignment authorization and optimistic conflicts, same-company stakeholder enforcement, action history, future handoffs, stage conflicts and the exact seven-milestone contract.
+Browser coverage includes all established workflows plus notification preferences, administrator exception scans, automation status, complete My Work sections, Needs Attention exceptions and the durable notification inbox. The API suite additionally verifies preference isolation, recipient routing, durable delivery history, read timestamps, automation runs, weekly-summary deduplication and the complete work-queue contract.
 
-Before upgrading persistent local deployments, PostgreSQL dumps are stored in the ignored `backups/` directory. International and US post-deployment health, migration, tenant/currency isolation and full browser results are recorded as part of each local release operation.
+Before this upgrade, PostgreSQL dumps for both persistent deployments were stored in the ignored `backups/` directory. Post-deployment checks confirmed both six-service stacks are running, the scheduler is active, and the worker registered the exception-scan and weekly-summary tasks.

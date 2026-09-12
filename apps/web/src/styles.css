@@ -3387,3 +3387,77 @@ td small {
     grid-template-columns: 1fr;
   }
 }
+
+.notification-actions {
+  display: flex;
+  gap: 10px;
+}
+.notification-item > span {
+  display: grid;
+  gap: 5px;
+}
+.notification-item .badge {
+  width: fit-content;
+}
+.notification-item strong {
+  font-size: 11px;
+  line-height: 1.45;
+}
+.work-section {
+  margin-bottom: 16px;
+}
+.attention-list {
+  display: grid;
+  gap: 8px;
+}
+.attention-list > button {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 14px;
+  border: 1px solid #e3eaef;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--navy);
+  text-align: left;
+  cursor: pointer;
+}
+.attention-list > button:hover {
+  border-color: #cfdae2;
+  background: #fafcfd;
+}
+.attention-list strong,
+.attention-list small,
+.automation-status strong,
+.automation-status span,
+.automation-status small {
+  display: block;
+}
+.attention-list small,
+.automation-status span,
+.automation-status small {
+  margin-top: 4px;
+  color: #7d8f9d;
+  font-size: 10px;
+}
+.automation-status {
+  min-height: 65px;
+  padding: 12px 0;
+}
+.notification-settings .panel {
+  display: flex;
+  flex-direction: column;
+}
+.notification-settings .button {
+  align-self: flex-start;
+  margin-top: auto;
+}
+@media (max-width: 650px) {
+  .attention-list > button {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+  .attention-list > button > svg {
+    display: none;
+  }
+}

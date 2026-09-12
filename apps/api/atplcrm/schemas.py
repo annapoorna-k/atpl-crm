@@ -131,6 +131,23 @@ class ActionCompletionInput(Input):
     next_action_date: date
 
 
+class NotificationPreferenceInput(Input):
+    due_actions: bool
+    stalled_pursuits: bool
+    blockers: bool
+    inactivity: bool
+    proposal_followup: bool
+    validation: bool
+    presales: bool
+    close_dates: bool
+    revisits: bool
+    system_failures: bool
+    weekly_summary: bool
+    inactivity_days: int = Field(ge=7, le=120)
+    proposal_followup_days: int = Field(ge=1, le=60)
+    close_notice_days: int = Field(ge=1, le=60)
+
+
 class ValueInput(Input):
     amount: Decimal = Field(ge=0, max_digits=18, decimal_places=2)
     value_type: str

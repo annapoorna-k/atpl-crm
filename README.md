@@ -14,7 +14,7 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.6, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.7, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
@@ -24,6 +24,9 @@ This is **v0.6, an initial working core**, using synthetic data and local passwo
 - Ball in Court, atomic action completion and future handoff, immutable completed-action history, blocker owner/resolution, optimistic concurrency, stale/overdue flags and client-only interaction tracking.
 - Drag-and-drop and accessible-select opportunity stage changes with evidence prompts, row locking and version-conflict protection; required pre-sales roles; won/lost/hold validation; probability overrides; restricted commercial values and append-only value history.
 - Seven-milestone lifecycle tracking on every pursuit, plus count, median working-day and health-target reporting.
+- Server-backed My Work queues for overdue, today and upcoming actions, blockers owned by the user, and assigned pre-sales deliverables.
+- Needs Attention exception queue for overdue or missing actions, long-held pursuits, aged blockers, client inactivity, expired close dates, delayed validation and overdue deliverables.
+- Per-user notification preferences and thresholds, durable in-app delivery history, escalation routing, 15-minute exception scans, Monday leadership summaries, and automation run/failure monitoring.
 - Team assignments, pre-sales request creation/status updates, secure document-link registration, basic contact collision notifications and periodic attention/revisit notifications.
 - Administrator-managed local users, access levels, activation and password resets, plus configurable workflow labels, stage probabilities and exchange rates.
 - Tenant-scoped global search, mapped CSV previews and imports for companies, contacts and leads, downloadable templates/error reports, import history, exact-match duplicate review/merge and a data-quality dashboard.

@@ -395,3 +395,51 @@ test("manager drags a stage, completes an action and reviews milestones", async 
   ).toBeVisible();
   await expect(page.locator(".milestone-report-grid > button")).toHaveCount(7);
 });
+
+test("administrator manages alerts and reviews complete work queues", async ({
+  page,
+}) => {
+  await signIn(page, "admin");
+  await page.goto("/#settings");
+  await expect(
+    page.getByRole("heading", { name: "Notification preferences" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Notification automation" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Manage preferences", exact: true })
+    .click();
+  const preferences = page.getByRole("dialog").last();
+  await preferences.getByLabel("Client inactivity threshold (days)").fill("28");
+  await preferences
+    .getByRole("button", { name: "Save changes", exact: true })
+    .click();
+  await expect(page.getByText("Changes saved successfully.")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Run exception scan", exact: true })
+    .click();
+  await expect(page.getByText(/new notifications created/)).toBeVisible();
+  await page.goto("/#work");
+  for (const heading of [
+    "Overdue actions",
+    "Due today",
+    "Upcoming actions",
+    "Blockers you own",
+    "Your deliverables",
+  ])
+    await expect(
+      page.getByRole("heading", { name: heading, exact: true }),
+    ).toBeVisible();
+  await page.goto("/#attention");
+  await expect(
+    page.getByRole("heading", { name: "Needs Attention", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Notifications" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Notifications", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Preferences", exact: true }),
+  ).toBeVisible();
+});
