@@ -1,6 +1,8 @@
 import hashlib
 import hmac
+import re
 import secrets
+from difflib import SequenceMatcher
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -18,6 +20,14 @@ from .services import audit, can_value, can_work, future_date, get_scoped, http_
 from .settings import Settings, get_settings
 
 router = APIRouter(prefix="/api/v1")
+
+
+def duplicate_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (value or "").casefold())
+
+
+def similar(left: str, right: str) -> int:
+    return round(100 * SequenceMatcher(None, duplicate_key(left), duplicate_key(right)).ratio())
 
 
 def user_options() -> tuple:
@@ -113,10 +123,11 @@ def bootstrap(db: Session = Depends(get_db), user: User = Depends(current_user),
 @router.post("/companies/", status_code=201)
 def create_company(payload: CompanyInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
     if payload.company_type not in COMPANY_TYPES: raise http_error(422, {"company_type": "Choose a valid company type."})
-    if db.scalar(scoped(db, Company, user).where(func.lower(Company.name) == payload.name.lower())):
-        raise http_error(422, {"name": "A company with this name already exists. Use the existing company."})
+    possible = [item for item in db.scalars(scoped(db, Company, user)).all() if duplicate_key(item.name) == duplicate_key(payload.name) or payload.domain and duplicate_key(item.domain) == duplicate_key(payload.domain) or item.country.casefold() == payload.country.casefold() and similar(item.name, payload.name) >= 88]
+    if possible and not payload.duplicate_override:
+        raise http_error(409, {"duplicate_override": f"Possible duplicate: {possible[0].name}. Review the existing company, or confirm that this is a separate record."})
     owner = tenant_user(db, user, payload.owner)
-    item = Company(**stamp(user), **payload.model_dump(exclude={"owner"}), owner_id=owner.id)
+    item = Company(**stamp(user), **payload.model_dump(exclude={"owner", "duplicate_override"}), owner_id=owner.id)
     db.add(item); audit(db, user, "Company created", detail=item.name); db.commit(); db.refresh(item)
     item.owner = owner
     return out.company(item)
@@ -127,7 +138,7 @@ def update_company(identifier: UUID, payload: CompanyPatch, db: Session = Depend
     item = get_scoped(db, Company, user, identifier)
     if item.owner_id != user.id and user.level not in MANAGEMENT:
         raise http_error(403, "Only the relationship owner or management can edit this company.")
-    values = payload.model_dump(exclude_unset=True)
+    values = payload.model_dump(exclude_unset=True, exclude={"duplicate_override"})
     if "company_type" in values and values["company_type"] not in COMPANY_TYPES: raise http_error(422, {"company_type": "Choose a valid company type."})
     if "owner" in values:
         values["owner_id"] = tenant_user(db, user, values.pop("owner")).id
@@ -145,7 +156,10 @@ def create_contact(payload: ContactInput, db: Session = Depends(get_db), user: U
     email = str(payload.email).lower()
     if email and db.scalar(scoped(db, Contact, user).where(func.lower(Contact.email) == email)):
         raise http_error(422, {"email": "This email already exists. Open the existing contact instead."})
-    values = payload.model_dump(exclude={"company", "owner", "sourced_by"}); values["email"] = email
+    possible = [item for item in db.scalars(scoped(db, Contact, user).where(Contact.company_id == company.id)).all() if similar(item.name, f"{payload.first_name} {payload.last_name}") >= 90 or duplicate_key(payload.mobile or payload.phone) and duplicate_key(item.mobile or item.phone) == duplicate_key(payload.mobile or payload.phone)]
+    if possible and not payload.duplicate_override:
+        raise http_error(409, {"duplicate_override": f"Possible duplicate: {possible[0].name} at {company.name}. Review the existing contact, or confirm that this is a separate person."})
+    values = payload.model_dump(exclude={"company", "owner", "sourced_by", "duplicate_override"}); values["email"] = email
     if values["engagement_status"] == "Do not contact": values["do_not_contact"] = True
     if values["do_not_contact"]: values["engagement_status"] = "Do not contact"
     item = Contact(**stamp(user), **values, company_id=company.id, owner_id=owner.id, sourced_by_id=sourced_by.id)
@@ -159,7 +173,7 @@ def update_contact(identifier: UUID, payload: ContactPatch, db: Session = Depend
     item = get_scoped(db, Contact, user, identifier)
     if item.owner_id != user.id and user.level not in MANAGEMENT:
         raise http_error(403, "Only the relationship owner or management can edit this contact.")
-    values = payload.model_dump(exclude_unset=True)
+    values = payload.model_dump(exclude_unset=True, exclude={"duplicate_override"})
     if "company" in values: values["company_id"] = get_scoped(db, Company, user, values.pop("company")).id
     if "owner" in values: values["owner_id"] = tenant_user(db, user, values.pop("owner")).id
     if "sourced_by" in values: values["sourced_by_id"] = tenant_user(db, user, values.pop("sourced_by")).id

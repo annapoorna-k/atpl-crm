@@ -1849,15 +1849,51 @@ td small {
   line-height: 1.55;
 }
 .form-notice svg,
-.dnc-banner svg { flex: 0 0 auto; margin-top: 1px; }
+.dnc-banner svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
 .form-notice strong,
-.dnc-banner strong { display: block; color: var(--navy); }
-.dnc-banner { margin: 20px 0; border-color: #e7bd9d; background: #fff5ed; }
-.history-loading { display: flex; align-items: center; gap: 9px; color: #708696; padding: 24px 0; font-size: 12px; }
-.history-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--border); padding-top: 16px; color: #708696; font-size: 11px; }
-.relationship-notes { white-space: pre-wrap; color: #627988; line-height: 1.7; margin: 8px 0 24px; }
-.override-note { color: #8a541f !important; font-weight: 600; }
-.relationship-meta { margin: 20px 0 28px; }
+.dnc-banner strong {
+  display: block;
+  color: var(--navy);
+}
+.dnc-banner {
+  margin: 20px 0;
+  border-color: #e7bd9d;
+  background: #fff5ed;
+}
+.history-loading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #708696;
+  padding: 24px 0;
+  font-size: 12px;
+}
+.history-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  color: #708696;
+  font-size: 11px;
+}
+.relationship-notes {
+  white-space: pre-wrap;
+  color: #627988;
+  line-height: 1.7;
+  margin: 8px 0 24px;
+}
+.override-note {
+  color: #8a541f !important;
+  font-weight: 600;
+}
+.relationship-meta {
+  margin: 20px 0 28px;
+}
 .spaced {
   margin-top: 28px !important;
   margin-bottom: 15px !important;
@@ -2922,6 +2958,37 @@ td small {
 .import-errors {
   margin-top: 18px;
 }
+.import-warnings {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #ead27a;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+.import-warnings > div:not(.import-error-heading) {
+  display: grid;
+  grid-template-columns: 60px 70px 1fr;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee2b5;
+  font-size: 10px;
+}
+.import-warnings em {
+  color: #6e6549;
+  font-style: normal;
+}
+.warning-confirmation {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 13px;
+  color: #5d512b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.warning-confirmation input {
+  margin-top: 2px;
+}
 .import-error-heading {
   display: flex !important;
   grid-template-columns: none !important;
@@ -3005,6 +3072,119 @@ td small {
   display: block;
   margin-top: 3px;
 }
+.duplicate-actions {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+}
+.duplicate-actions > div {
+  display: flex;
+  gap: 6px;
+}
+.duplicate-actions input {
+  min-width: 0;
+  width: 170px;
+  padding: 7px 8px;
+  border: 1px solid #d8e1e7;
+  border-radius: 5px;
+  font-size: 10px;
+}
+.merge-review {
+  margin: 0 22px 22px;
+  padding: 20px;
+  border: 2px solid #dbc15f;
+  border-radius: 10px;
+  background: #fffdf5;
+}
+.merge-review-heading,
+.merge-footer,
+.quality-actions,
+.quality-pagination,
+.quality-pagination > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.merge-review-heading h2 {
+  margin: 4px 0 16px;
+  font-size: 18px;
+}
+.merge-review-heading small {
+  color: #99771a;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.merge-primary {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+  color: #617686;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.merge-primary select,
+.quality-actions select {
+  padding: 8px 10px;
+  border: 1px solid #d5dfe6;
+  border-radius: 6px;
+  background: white;
+  color: var(--navy);
+}
+.merge-fields {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+.merge-fields > div {
+  display: grid;
+  grid-template-columns: 150px 1fr 1fr;
+  gap: 10px;
+  align-items: stretch;
+}
+.merge-fields > div > strong {
+  padding: 10px 0;
+  color: #5b7080;
+  font-size: 10px;
+}
+.merge-fields label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  padding: 9px;
+  border: 1px solid #e0e6ea;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+}
+.merge-fields label.selected {
+  border-color: #cda924;
+  box-shadow: 0 0 0 1px #cda924;
+}
+.merge-fields label input {
+  grid-row: span 2;
+}
+.merge-fields label span {
+  color: var(--navy);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+.merge-fields label small {
+  color: #8695a0;
+  font-size: 8px;
+}
+.merge-footer {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e8dfbd;
+}
+.merge-footer p {
+  max-width: 680px;
+  color: #6f7e87;
+  font-size: 10px;
+  line-height: 1.6;
+}
 .quality-metrics {
   display: grid;
   grid-template-columns: 2fr repeat(4, 1fr);
@@ -3072,7 +3252,8 @@ td small {
   font-size: 10px;
   text-transform: capitalize;
 }
-.quality-list a {
+.quality-list a,
+.quality-list button {
   display: grid;
   grid-template-columns: 65px minmax(160px, 0.6fr) 1fr;
   align-items: center;
@@ -3080,13 +3261,30 @@ td small {
   padding: 13px 22px;
   border-top: 1px solid #edf1f4;
   text-decoration: none;
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: transparent;
+  text-align: left;
 }
-.quality-list a:hover {
+.quality-list a:hover,
+.quality-list button:hover {
   background: #f8fafb;
 }
 .quality-list strong,
 .quality-list small {
   display: block;
+}
+.quality-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.quality-pagination {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  color: #708290;
+  font-size: 10px;
 }
 .quality-list strong {
   color: var(--navy);
@@ -3131,6 +3329,9 @@ td small {
   .duplicate-list article {
     grid-template-columns: 1fr;
   }
+  .merge-fields > div {
+    grid-template-columns: 120px 1fr 1fr;
+  }
 }
 @media (max-width: 650px) {
   .global-search-form,
@@ -3155,6 +3356,17 @@ td small {
   }
   .panel-heading .button {
     align-self: flex-start;
+  }
+  .merge-fields > div {
+    grid-template-columns: 1fr;
+  }
+  .merge-fields > div > strong {
+    padding-bottom: 0;
+  }
+  .merge-footer,
+  .quality-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 .record-list-panel {

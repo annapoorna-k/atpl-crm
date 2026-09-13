@@ -9,7 +9,7 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-07 | 12-hour inactivity timeout | Implemented | atplcrm/security.py |
 | FR-10–11 | Companies/contacts | Implemented | full company and section 7.5 contact fields, controlled values, ownership/source attribution and responsive create/edit/detail UI |
 | FR-12–17 | Activities, histories, sources, do-not-contact | Implemented | fast activity form with backdating, derived client-facing behavior, engagement/first-touch updates, protected outbound overrides and paginated Company/Contact histories |
-| FR-18–19 | Import and duplicate resolution | Partial | mapped CSV dry-run/import/error history and exact duplicate merge are implemented; Excel, fuzzy rules and field-level merge choice remain |
+| FR-18–19 | Import and duplicate resolution | Implemented | mapped CSV/Excel dry runs, full-field row validation, confirmed duplicate warnings, durable history, exact/fuzzy review, field-level merges and reviewed-distinct decisions |
 | FR-20 | Contact collision | Implemented | pre-save warning names the owner, last outbound touch and related pursuit; save remains permitted and creates a durable owner notification |
 | FR-21 | Universal search | Partial | tenant-scoped server search, type/owner/status/country filters and pagination implemented; ranked full-text indexes and saved recent searches remain |
 | FR-25–26 | Lead create/board/list/filters | Partial | server-paginated list and primary filters implemented; remaining specialized filters pending |

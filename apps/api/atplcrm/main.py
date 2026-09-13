@@ -12,7 +12,7 @@ from .notifications import router as notifications_router
 from .commercial import router as commercial_router
 from .database import engine
 
-app = FastAPI(title="ATPLCRM API", version="0.9.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+app = FastAPI(title="ATPLCRM API", version="0.10.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
 app.include_router(router)
 app.include_router(admin_router)
 app.include_router(data_router)

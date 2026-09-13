@@ -1,4 +1,4 @@
-# ATPLCRM v0.9 delivery status
+# ATPLCRM v0.10 delivery status
 
 This release starts the implementation plan and delivers an executable core. It does not mark all phases complete.
 
@@ -24,6 +24,7 @@ This release starts the implementation plan and delivers an executable core. It 
 - Complete commercial workspace: multiple partner involvements, validated contract/margin/fixed/commission/spread terms, evidence status, configurable 40% share warning, reproducible net values, partner reports, fixed-rate updates, confirmed bulk re-baselining and monthly published-rate adapter with movement/failure alerts.
 - Opportunity close capture now retains loss context/competitor data or won contract, project-start, duration, final evidence, optional approval evidence and delivery handoff notes. Probability overrides retain the stage-default snapshot.
 - Company/contact/activity completion: every section 7.5 contact field is editable, source attribution and controlled engagement are enforced, first/last/touch metrics are derived, do-not-contact overrides are retained, collision warnings include prior outreach context, and Company 360/Contact Detail use full paginated histories.
+- Import/data-quality completion: CSV and `.xlsx` dry runs support mapped full-field company/contact/lead imports up to 20,000 rows, within-file and existing-record validation, confirmed fuzzy warnings, durable job results, field-by-field duplicate merges/dismissals and actionable filtered quality reporting.
 - FastAPI workflow tests, TypeScript/production UI build, plus Docker/PostgreSQL and browser verification as recorded in VERIFICATION.md.
 
 ## Deliberate limits and remaining work
@@ -32,7 +33,7 @@ This release starts the implementation plan and delivers an executable core. It 
 | Identity | Real Entra OIDC, local OIDC provider replacement for temporary demo password login, provisioned-user lifecycle and stronger login rate limiting. |
 | Administration | Fine-grained permission policies and connected-identity provisioning. Local users, global access levels, activation, password resets, reference options, stage probabilities and rates are editable now. |
 | Schema | Remaining artifact/email/share fields; complete database-level role/tenant constraints and separate runtime/migration privileges. Commercial partner, closure and rate-governance fields are complete. |
-| Data entry | Excel imports, background processing beyond the current 5,000-row CSV limit, fuzzy duplicate matching, field-level merge selection and remaining opportunity business fields. |
+| Data entry | Company/contact/lead CSV and Excel import plus duplicate/data-quality workflows are complete locally. Connected-volume performance acceptance and remaining opportunity business fields are separate work. |
 | Pipeline | Remaining specialized filters, configurable working calendars and deeper stage movement analysis. Drag-and-drop, accessible select movement, action completion, stage-edit concurrency and seven-milestone reporting work now. |
 | Commercial | Local implementation complete. Configure and approve `FX_RATES_URL`/source before connected monthly refresh acceptance; synthetic rates remain clearly labelled. |
 | Activity | Company/contact completion is implemented with paginated protected histories, collision context, engagement updates and retained overrides. Scale acceptance at the PRD target remains pending. |

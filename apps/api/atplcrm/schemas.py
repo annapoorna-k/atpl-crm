@@ -23,6 +23,7 @@ class CompanyInput(Input):
     global_account_name: str = Field("", max_length=180)
     primary_region: str = Field("", max_length=80)
     owner: int
+    duplicate_override: bool = False
 
 
 class CompanyPatch(CompanyInput):
@@ -51,6 +52,7 @@ class ContactInput(Input):
     do_not_contact: bool = False
     consent_basis: Literal["Business card or event", "Referral", "Public professional profile", "Inbound enquiry", "Existing client relationship"] = "Business card or event"
     notes: str = ""
+    duplicate_override: bool = False
 
 
 class ContactPatch(ContactInput):
@@ -329,13 +331,31 @@ class RatePatch(Input):
 class ImportInput(Input):
     entity_type: Literal["companies", "contacts", "leads"]
     filename: str = Field(min_length=1, max_length=180)
-    csv_text: str = Field(min_length=1, max_length=2_000_000)
+    csv_text: str = Field("", max_length=8_000_000)
+    file_content: str = Field("", max_length=12_000_000)
+    file_type: Literal["csv", "xlsx"] = "csv"
     mapping: dict[str, str] = Field(default_factory=dict)
+    confirm_warnings: bool = False
+
+    @model_validator(mode="after")
+    def has_file_content(self):
+        if self.file_type == "csv" and not self.csv_text:
+            raise ValueError("CSV content is required.")
+        if self.file_type == "xlsx" and not self.file_content:
+            raise ValueError("Excel file content is required.")
+        return self
 
 
 class MergeInput(Input):
     primary_id: UUID
     duplicate_id: UUID
+    field_sources: dict[str, UUID] = Field(default_factory=dict)
+
+
+class DuplicateDismissInput(Input):
+    first_id: UUID
+    second_id: UUID
+    reason: str = Field(min_length=3, max_length=250)
 
 
 class SavedViewInput(Input):

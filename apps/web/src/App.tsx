@@ -194,7 +194,14 @@ function FormModal({
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [notice, setNotice] = useState(() => spec.notice?.(Object.fromEntries(spec.fields.map((field) => [field.name, field.value ?? ""]))) ?? "");
+    [notice, setNotice] = useState(
+      () =>
+        spec.notice?.(
+          Object.fromEntries(
+            spec.fields.map((field) => [field.name, field.value ?? ""]),
+          ),
+        ) ?? "",
+    );
   useEffect(() => {
     ref.current?.showModal();
   }, []);
@@ -239,7 +246,19 @@ function FormModal({
       {spec.description && (
         <p className="form-description">{spec.description}</p>
       )}
-      <form onSubmit={submit} onChange={(event) => setNotice(spec.notice?.(Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>) ?? "")}>
+      <form
+        onSubmit={submit}
+        onChange={(event) =>
+          setNotice(
+            spec.notice?.(
+              Object.fromEntries(new FormData(event.currentTarget)) as Record<
+                string,
+                string
+              >,
+            ) ?? "",
+          )
+        }
+      >
         <div className="form-grid">
           {spec.fields.map((f) => (
             <label key={f.name} className={f.type === "textarea" ? "full" : ""}>
@@ -281,7 +300,10 @@ function FormModal({
         {notice && (
           <div role="status" className="form-notice">
             <AlertCircle size={18} />
-            <span><strong>Contact owner warning</strong>{notice}</span>
+            <span>
+              <strong>Contact owner warning</strong>
+              {notice}
+            </span>
           </div>
         )}
         {error && (
@@ -438,7 +460,8 @@ export default function App() {
     [undocumentedPartners, setUndocumentedPartners] = useState<
       UndocumentedPartnerReport[]
     >([]),
-    [relationshipHistory, setRelationshipHistory] = useState<ActivityPage | null>(null);
+    [relationshipHistory, setRelationshipHistory] =
+      useState<ActivityPage | null>(null);
   const detailRef = useRef<HTMLDialogElement>(null);
   async function load() {
     try {
@@ -834,6 +857,18 @@ export default function App() {
           value: c?.primary_region,
           required: false,
         }),
+        ...(!c
+          ? [
+              field("duplicate_override", "Possible duplicate handling", {
+                options: [
+                  ["false", "Stop and show a warning"],
+                  ["true", "Reviewed — create separate record"],
+                ],
+                value: "false",
+                hint: "Choose the reviewed option only when a similar company is genuinely separate.",
+              }),
+            ]
+          : []),
       ],
       submit: (v) =>
         api(`companies/${c ? c.id + "/" : ""}`, c ? "PATCH" : "POST", v),
@@ -854,7 +889,14 @@ export default function App() {
           required: false,
         }),
         field("seniority", "Seniority", {
-          options: options(["C-level", "VP or Head", "Director", "Manager", "Individual contributor", "Unknown"]),
+          options: options([
+            "C-level",
+            "VP or Head",
+            "Director",
+            "Manager",
+            "Individual contributor",
+            "Unknown",
+          ]),
           value: c?.seniority ?? "Unknown",
         }),
         field("email", "Email", {
@@ -864,7 +906,11 @@ export default function App() {
         }),
         field("phone", "Phone", { value: c?.phone, required: false }),
         field("mobile", "Mobile", { value: c?.mobile, required: false }),
-        field("linkedin_url", "LinkedIn profile", { type: "url", value: c?.linkedin_url, required: false }),
+        field("linkedin_url", "LinkedIn profile", {
+          type: "url",
+          value: c?.linkedin_url,
+          required: false,
+        }),
         field("country", "Country", { value: c?.country }),
         field("city", "City", { value: c?.city, required: false }),
         field("owner", "Relationship owner", {
@@ -879,7 +925,10 @@ export default function App() {
           options: options(d.reference.sources),
           value: c?.source_channel ?? "LinkedIn",
         }),
-        field("source_detail", "Source detail", { value: c?.source_detail, required: false }),
+        field("source_detail", "Source detail", {
+          value: c?.source_detail,
+          required: false,
+        }),
         field("consent_basis", "Contact obtained through", {
           options: options([
             "Business card or event",
@@ -898,10 +947,33 @@ export default function App() {
           value: String(c?.do_not_contact ?? false),
         }),
         field("engagement_status", "Engagement status", {
-          options: options(["Not contacted", "Contacted no response", "Engaged", "Meeting held", "Unresponsive", "Do not contact"]),
+          options: options([
+            "Not contacted",
+            "Contacted no response",
+            "Engaged",
+            "Meeting held",
+            "Unresponsive",
+            "Do not contact",
+          ]),
           value: c?.engagement_status ?? "Not contacted",
         }),
-        field("notes", "Relationship notes", { type: "textarea", value: c?.notes, required: false }),
+        field("notes", "Relationship notes", {
+          type: "textarea",
+          value: c?.notes,
+          required: false,
+        }),
+        ...(!c
+          ? [
+              field("duplicate_override", "Possible duplicate handling", {
+                options: [
+                  ["false", "Stop and show a warning"],
+                  ["true", "Reviewed — create separate person"],
+                ],
+                value: "false",
+                hint: "Exact email duplicates are always blocked.",
+              }),
+            ]
+          : []),
       ],
       submit: (v) =>
         api(`contacts/${c ? c.id + "/" : ""}`, c ? "PATCH" : "POST", v),
@@ -1015,8 +1087,16 @@ export default function App() {
         }),
       ],
       notice: (values) => {
-        const selectedContact = d.contacts.find((item) => item.id === values.contact);
-        if (!selectedContact || selectedContact.owner_id === d.user.id || values.direction !== "Outbound" || values.activity_type === "Internal note") return "";
+        const selectedContact = d.contacts.find(
+          (item) => item.id === values.contact,
+        );
+        if (
+          !selectedContact ||
+          selectedContact.owner_id === d.user.id ||
+          values.direction !== "Outbound" ||
+          values.activity_type === "Internal note"
+        )
+          return "";
         const prior = selectedContact.last_outbound_at
           ? ` Last outbound touch: ${date(selectedContact.last_outbound_at)}${selectedContact.last_outbound_pursuit ? ` on ${selectedContact.last_outbound_pursuit}` : ""}.`
           : " No earlier outbound touch is recorded.";
@@ -1631,36 +1711,76 @@ export default function App() {
     });
   }
   async function loadMoreHistory() {
-    if (!relationshipHistory || relationshipHistory.page >= relationshipHistory.pages) return;
+    if (
+      !relationshipHistory ||
+      relationshipHistory.page >= relationshipHistory.pages
+    )
+      return;
     const filter = contactId ? `contact=${contactId}` : `company=${companyId}`;
     try {
-      const next = await api<ActivityPage>(`activities/?${filter}&page=${relationshipHistory.page + 1}&page_size=${relationshipHistory.page_size}`);
-      setRelationshipHistory({ ...next, items: [...relationshipHistory.items, ...next.items] });
+      const next = await api<ActivityPage>(
+        `activities/?${filter}&page=${relationshipHistory.page + 1}&page_size=${relationshipHistory.page_size}`,
+      );
+      setRelationshipHistory({
+        ...next,
+        items: [...relationshipHistory.items, ...next.items],
+      });
     } catch (e) {
       setToast((e as Error).message);
     }
   }
   const historyView = () => {
-    if (!relationshipHistory) return <div className="history-loading"><LoaderCircle className="spin" size={18} /> Loading complete history…</div>;
-    if (!relationshipHistory.items.length) return <Empty title="No interactions yet" text="Log the first email, call, meeting or internal note here." />;
-    return <>
-      {relationshipHistory.items.map((a) => (
-        <div className="timeline-item" key={a.id}>
-          <span className={`timeline-dot ${a.is_client_facing ? "client" : "internal"}`} />
-          <div>
-            <small>{date(a.date)} · {a.activity_type} · {a.direction} · {a.author}</small>
-            <h3>{a.subject}</h3>
-            <p>{[a.contact, a.pursuit, a.outcome].filter(Boolean).join(" · ")}</p>
-            {a.notes && <p>{a.notes}</p>}
-            {a.override_reason && <p className="override-note">Override: {a.override_reason}</p>}
-          </div>
+    if (!relationshipHistory)
+      return (
+        <div className="history-loading">
+          <LoaderCircle className="spin" size={18} /> Loading complete history…
         </div>
-      ))}
-      <div className="history-footer">
-        <span>Showing {relationshipHistory.items.length} of {relationshipHistory.total} interactions</span>
-        {relationshipHistory.page < relationshipHistory.pages && <button className="button secondary" onClick={() => void loadMoreHistory()}>Load more</button>}
-      </div>
-    </>;
+      );
+    if (!relationshipHistory.items.length)
+      return (
+        <Empty
+          title="No interactions yet"
+          text="Log the first email, call, meeting or internal note here."
+        />
+      );
+    return (
+      <>
+        {relationshipHistory.items.map((a) => (
+          <div className="timeline-item" key={a.id}>
+            <span
+              className={`timeline-dot ${a.is_client_facing ? "client" : "internal"}`}
+            />
+            <div>
+              <small>
+                {date(a.date)} · {a.activity_type} · {a.direction} · {a.author}
+              </small>
+              <h3>{a.subject}</h3>
+              <p>
+                {[a.contact, a.pursuit, a.outcome].filter(Boolean).join(" · ")}
+              </p>
+              {a.notes && <p>{a.notes}</p>}
+              {a.override_reason && (
+                <p className="override-note">Override: {a.override_reason}</p>
+              )}
+            </div>
+          </div>
+        ))}
+        <div className="history-footer">
+          <span>
+            Showing {relationshipHistory.items.length} of{" "}
+            {relationshipHistory.total} interactions
+          </span>
+          {relationshipHistory.page < relationshipHistory.pages && (
+            <button
+              className="button secondary"
+              onClick={() => void loadMoreHistory()}
+            >
+              Load more
+            </button>
+          )}
+        </div>
+      </>
+    );
   };
   const title =
     nav
@@ -1681,64 +1801,57 @@ export default function App() {
           </tr>
         </thead>
         <tbody>
-          {(showAll ? records : filtered(records))
-            .slice(0, limit)
-            .map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <button
-                    className="record-name"
-                    onClick={() => openPursuit(r)}
-                  >
-                    {r.name}
-                  </button>
-                  <small>{r.company}</small>
-                </td>
-                <td>
-                  <Badge
-                    tone={
-                      r.stage === "won"
-                        ? "green"
-                        : r.stage === "proposal"
-                          ? "blue"
-                          : "neutral"
-                    }
-                  >
-                    {r.stage
-                      ? dictLabel(d.reference.stages, r.stage)
-                      : dictLabel(d.reference.lead_statuses, r.status)}
-                  </Badge>
-                </td>
-                <td>
-                  <div className="person">
-                    <Avatar name={r.holder} small />
-                    <span>
-                      {r.holder.split(" ")[0]}
-                      <small>{r.days_held}d held</small>
-                    </span>
-                  </div>
-                </td>
-                <td className="action-cell">{r.next_action}</td>
-                <td>
-                  <span
-                    className={r.action_date < d.today ? "overdue" : "date"}
-                  >
-                    {r.action_date < d.today && <span className="tiny-dot" />}
-                    {date(r.action_date)}
+          {(showAll ? records : filtered(records)).slice(0, limit).map((r) => (
+            <tr key={r.id}>
+              <td>
+                <button className="record-name" onClick={() => openPursuit(r)}>
+                  {r.name}
+                </button>
+                <small>{r.company}</small>
+              </td>
+              <td>
+                <Badge
+                  tone={
+                    r.stage === "won"
+                      ? "green"
+                      : r.stage === "proposal"
+                        ? "blue"
+                        : "neutral"
+                  }
+                >
+                  {r.stage
+                    ? dictLabel(d.reference.stages, r.stage)
+                    : dictLabel(d.reference.lead_statuses, r.status)}
+                </Badge>
+              </td>
+              <td>
+                <div className="person">
+                  <Avatar name={r.holder} small />
+                  <span>
+                    {r.holder.split(" ")[0]}
+                    <small>{r.days_held}d held</small>
                   </span>
-                </td>
-                <td>
-                  <button
-                    className="icon-button"
-                    onClick={() => workForm(r)}
-                    disabled={!r.can_work}
-                    aria-label={`Update ${r.name}`}
-                  >
-                    <ChevronRight size={18} />
-                  </button>
-                </td>
-              </tr>
-            ))}
+                </div>
+              </td>
+              <td className="action-cell">{r.next_action}</td>
+              <td>
+                <span className={r.action_date < d.today ? "overdue" : "date"}>
+                  {r.action_date < d.today && <span className="tiny-dot" />}
+                  {date(r.action_date)}
+                </span>
+              </td>
+              <td>
+                <button
+                  className="icon-button"
+                  onClick={() => workForm(r)}
+                  disabled={!r.can_work}
+                  aria-label={`Update ${r.name}`}
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
       {!filtered(records).length && (
@@ -3343,6 +3456,21 @@ export default function App() {
               data={d}
               notify={setToast}
               onChanged={() => void load()}
+              onOpen={(type, id) => {
+                if (type === "Company") {
+                  setCompanyId(id);
+                  setContactId(null);
+                  setSelected(null);
+                } else if (type === "Contact") {
+                  setContactId(id);
+                  setCompanyId(null);
+                  setSelected(null);
+                } else {
+                  setSelected(id);
+                  setCompanyId(null);
+                  setContactId(null);
+                }
+              }}
             />
           )}
           <footer className="page-footer">
@@ -4203,10 +4331,25 @@ export default function App() {
                 </button>
               </div>
               <div className="detail-meta relationship-meta">
-                <div><small>Relationship owner</small><strong>{company.owner}</strong></div>
-                <div><small>Domain</small><strong>{company.domain || "Not provided"}</strong></div>
-                <div><small>Industry</small><strong>{company.industry || "Not provided"}</strong></div>
-                <div><small>Global account</small><strong>{company.global_account_name || "Local account"}</strong><span>{company.primary_region || "No primary region"}</span></div>
+                <div>
+                  <small>Relationship owner</small>
+                  <strong>{company.owner}</strong>
+                </div>
+                <div>
+                  <small>Domain</small>
+                  <strong>{company.domain || "Not provided"}</strong>
+                </div>
+                <div>
+                  <small>Industry</small>
+                  <strong>{company.industry || "Not provided"}</strong>
+                </div>
+                <div>
+                  <small>Global account</small>
+                  <strong>
+                    {company.global_account_name || "Local account"}
+                  </strong>
+                  <span>{company.primary_region || "No primary region"}</span>
+                </div>
               </div>
               <h3>Contacts</h3>
               {d.contacts
@@ -4231,7 +4374,11 @@ export default function App() {
                   </button>
                 ))}
               <h3 className="spaced">All pursuits</h3>
-              {table(all.filter((r) => r.company_id === company.id), undefined, true)}
+              {table(
+                all.filter((r) => r.company_id === company.id),
+                undefined,
+                true,
+              )}
               <h3 className="spaced">Company interactions</h3>
               {historyView()}
             </div>
@@ -4268,27 +4415,65 @@ export default function App() {
                 <div>
                   <small>Source</small>
                   <strong>{contact.source_channel}</strong>
-                  <span>{contact.source_detail || `Sourced by ${contact.sourced_by}`}</span>
+                  <span>
+                    {contact.source_detail ||
+                      `Sourced by ${contact.sourced_by}`}
+                  </span>
                 </div>
                 <div>
                   <small>Outbound touches</small>
                   <strong>{contact.touch_count}</strong>
-                  <span>First: {date(contact.first_contacted_at)} · Last: {date(contact.last_touched_at)}</span>
+                  <span>
+                    First: {date(contact.first_contacted_at)} · Last:{" "}
+                    {date(contact.last_touched_at)}
+                  </span>
                 </div>
-                <div><small>Phone / mobile</small><strong>{contact.phone || contact.mobile || "Not provided"}</strong></div>
-                <div><small>Location</small><strong>{[contact.city, contact.country].filter(Boolean).join(", ")}</strong></div>
-                <div><small>Seniority</small><strong>{contact.seniority}</strong></div>
-                <div><small>Consent basis</small><strong>{contact.consent_basis}</strong></div>
+                <div>
+                  <small>Phone / mobile</small>
+                  <strong>
+                    {contact.phone || contact.mobile || "Not provided"}
+                  </strong>
+                </div>
+                <div>
+                  <small>Location</small>
+                  <strong>
+                    {[contact.city, contact.country].filter(Boolean).join(", ")}
+                  </strong>
+                </div>
+                <div>
+                  <small>Seniority</small>
+                  <strong>{contact.seniority}</strong>
+                </div>
+                <div>
+                  <small>Consent basis</small>
+                  <strong>{contact.consent_basis}</strong>
+                </div>
               </div>
-              {contact.do_not_contact && <div className="dnc-banner"><ShieldCheck size={18} /><span><strong>Do not contact</strong>Outbound activity requires an override reason. Every override is retained in the activity history.</span></div>}
-              {contact.notes && <><h3>Relationship context</h3><p className="relationship-notes">{contact.notes}</p></>}
+              {contact.do_not_contact && (
+                <div className="dnc-banner">
+                  <ShieldCheck size={18} />
+                  <span>
+                    <strong>Do not contact</strong>Outbound activity requires an
+                    override reason. Every override is retained in the activity
+                    history.
+                  </span>
+                </div>
+              )}
+              {contact.notes && (
+                <>
+                  <h3>Relationship context</h3>
+                  <p className="relationship-notes">{contact.notes}</p>
+                </>
+              )}
               <h3>Associated pursuits</h3>
               {table(
                 all.filter(
                   (p) =>
                     p.contacts.some((c) => c.id === contact.id) ||
                     p.primary_contact_id === contact.id,
-                ), undefined, true
+                ),
+                undefined,
+                true,
               )}
               <h3 className="spaced">Interaction history</h3>
               {historyView()}

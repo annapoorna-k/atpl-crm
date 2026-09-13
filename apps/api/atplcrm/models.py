@@ -247,12 +247,26 @@ class WorkspaceReference(RecordMixin, Base):
 class ImportJob(RecordMixin, Base):
     __tablename__ = "crm_importjob"
     filename: Mapped[str] = mapped_column(String(180))
+    file_type: Mapped[str] = mapped_column(String(10), default="csv")
     entity_type: Mapped[str] = mapped_column(String(30))
     status: Mapped[str] = mapped_column(String(30), default="Completed")
     total_rows: Mapped[int] = mapped_column(Integer, default=0)
     imported_rows: Mapped[int] = mapped_column(Integer, default=0)
     skipped_rows: Mapped[int] = mapped_column(Integer, default=0)
     errors: Mapped[list] = mapped_column(JSON, default=list)
+    warnings: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class DuplicateDecision(RecordMixin, Base):
+    __tablename__ = "crm_duplicatedecision"
+    __table_args__ = (UniqueConstraint("tenant_id", "entity_type", "first_id", "second_id", name="crm_duplicate_decision_pair_uniq"),)
+    entity_type: Mapped[str] = mapped_column(String(30), index=True)
+    first_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    second_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    decision: Mapped[str] = mapped_column(String(30), default="Distinct")
+    reason: Mapped[str] = mapped_column(String(250), default="")
+    reviewed_by_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"))
+    reviewed_by: Mapped[User] = relationship(foreign_keys=[reviewed_by_id])
 
 
 class SavedView(RecordMixin, Base):

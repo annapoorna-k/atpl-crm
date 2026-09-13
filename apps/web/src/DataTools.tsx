@@ -24,6 +24,7 @@ type SearchResult = {
   route: string;
 };
 type ImportError = { row: number; field: string; message: string };
+type ImportWarning = ImportError & { record_id: string; confidence: number };
 type Preview = {
   headers: string[];
   suggested_mapping: Record<string, string | null>;
@@ -33,37 +34,56 @@ type Preview = {
   invalid_rows: number;
   errors: ImportError[];
   truncated_errors: boolean;
+  warnings: ImportWarning[];
+  truncated_warnings: boolean;
 };
 type ImportJob = {
   id: string;
   filename: string;
+  file_type: string;
   entity_type: string;
   status: string;
   total_rows: number;
   imported_rows: number;
   skipped_rows: number;
   errors: ImportError[];
+  warnings: ImportWarning[];
   created_at: string;
 };
 type DuplicateGroup = {
   entity_type: "companies" | "contacts";
   match_type: string;
   match_value: string;
-  records: { id: string; name: string; detail: string }[];
+  confidence: number;
+  match_reasons: string[];
+  records: {
+    id: string;
+    name: string;
+    detail: string;
+    fields: Record<string, string>;
+  }[];
 };
 type Quality = {
   score: number;
   records_checked: number;
   issue_count: number;
+  filtered_issue_count: number;
   duplicate_group_count: number;
+  duplicate_record_count: number;
   metrics: Record<string, number>;
+  severity_counts: Record<string, number>;
+  page: number;
+  pages: number;
+  page_size: number;
   issues: {
     type: string;
     id: string;
     name: string;
     reason: string;
+    code: string;
     severity: string;
     route: string;
+    recommended_action: string;
   }[];
 };
 
@@ -84,17 +104,27 @@ const fields: Record<string, string[]> = {
     "last_name",
     "country",
     "owner_email",
+    "sourced_by_email",
     "email",
     "job_title",
+    "seniority",
     "phone",
     "mobile",
+    "linkedin_url",
     "city",
     "source_channel",
+    "source_detail",
+    "engagement_status",
+    "do_not_contact",
+    "consent_basis",
+    "notes",
   ],
   leads: [
     "name",
     "company_name",
     "owner_email",
+    "holder_email",
+    "sourced_by_email",
     "next_action",
     "action_type",
     "action_date",
@@ -126,14 +156,25 @@ const required: Record<string, string[]> = {
 const label = (value: string) =>
   value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 
+const base64File = (buffer: ArrayBuffer) => {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 32768) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+  }
+  return btoa(binary);
+};
+
 export function DataTools({
   data,
   notify,
   onChanged,
+  onOpen,
 }: {
   data: Data;
   notify: (message: string) => void;
   onChanged: () => void;
+  onOpen: (type: string, id: string) => void;
 }) {
   const [tab, setTab] = useState("search");
   const [busy, setBusy] = useState(false);
@@ -145,11 +186,22 @@ export function DataTools({
   const [entity, setEntity] = useState("companies");
   const [filename, setFilename] = useState("");
   const [csvText, setCsvText] = useState("");
+  const [fileContent, setFileContent] = useState("");
+  const [fileType, setFileType] = useState<"csv" | "xlsx">("csv");
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [warningsConfirmed, setWarningsConfirmed] = useState(false);
   const [history, setHistory] = useState<ImportJob[]>([]);
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [quality, setQuality] = useState<Quality | null>(null);
+  const [qualitySeverity, setQualitySeverity] = useState("all");
+  const [qualityType, setQualityType] = useState("all");
+  const [mergeReview, setMergeReview] = useState<DuplicateGroup | null>(null);
+  const [mergePrimary, setMergePrimary] = useState("");
+  const [mergeSources, setMergeSources] = useState<Record<string, string>>({});
+  const [dismissReasons, setDismissReasons] = useState<Record<string, string>>(
+    {},
+  );
   const canManage = ["Manager", "Executive", "Administrator"].includes(
     data.user.level,
   );
@@ -158,7 +210,9 @@ export function DataTools({
     const [jobs, duplicateData, qualityData] = await Promise.all([
       api<ImportJob[]>("data/imports/"),
       api<{ groups: DuplicateGroup[] }>("data/duplicates/"),
-      api<Quality>("data/quality/"),
+      api<Quality>(
+        `data/quality/?severity=${qualitySeverity}&entity_type=${qualityType}&page=1&page_size=50`,
+      ),
     ]);
     setHistory(jobs);
     setDuplicates(duplicateData.groups);
@@ -203,16 +257,20 @@ export function DataTools({
     URL.revokeObjectURL(url);
   }
   async function validateImport() {
-    if (!csvText) return notify("Choose a CSV file first.");
+    if (!csvText && !fileContent)
+      return notify("Choose a CSV or Excel file first.");
     setBusy(true);
     try {
       const result = await api<Preview>("data/imports/preview/", "POST", {
         entity_type: entity,
         filename,
         csv_text: csvText,
+        file_content: fileContent,
+        file_type: fileType,
         mapping,
       });
       setPreview(result);
+      setWarningsConfirmed(false);
       setMapping(
         Object.fromEntries(
           Object.entries(result.suggested_mapping).filter(
@@ -233,13 +291,17 @@ export function DataTools({
         entity_type: entity,
         filename,
         csv_text: csvText,
+        file_content: fileContent,
+        file_type: fileType,
         mapping,
+        confirm_warnings: warningsConfirmed,
       });
       notify(
         `${job.imported_rows} rows imported; ${job.skipped_rows} skipped.`,
       );
       setPreview(null);
       setCsvText("");
+      setFileContent("");
       setFilename("");
       await refreshInsights();
       onChanged();
@@ -267,20 +329,34 @@ export function DataTools({
     anchor.click();
     URL.revokeObjectURL(url);
   }
-  async function mergeGroup(group: DuplicateGroup) {
-    if (group.records.length < 2) return;
+  function reviewMerge(group: DuplicateGroup) {
+    const primary = group.records[0];
+    setMergeReview(group);
+    setMergePrimary(primary.id);
+    setMergeSources(
+      Object.fromEntries(
+        Object.keys(primary.fields).map((field) => [field, primary.id]),
+      ),
+    );
+  }
+  async function mergeGroup() {
+    if (!mergeReview || !mergePrimary) return;
+    const duplicate = mergeReview.records.find(
+      (record) => record.id !== mergePrimary,
+    );
+    if (!duplicate) return;
     setBusy(true);
     try {
-      const [primary, ...rest] = group.records;
-      for (const duplicate of rest) {
-        await api(`data/duplicates/${group.entity_type}/merge/`, "POST", {
-          primary_id: primary.id,
-          duplicate_id: duplicate.id,
-        });
-      }
-      notify(
-        `Merged ${rest.length} record${rest.length === 1 ? "" : "s"} into ${primary.name}.`,
+      await api(`data/duplicates/${mergeReview.entity_type}/merge/`, "POST", {
+        primary_id: mergePrimary,
+        duplicate_id: duplicate.id,
+        field_sources: mergeSources,
+      });
+      const primary = mergeReview.records.find(
+        (record) => record.id === mergePrimary,
       );
+      notify(`Merged the reviewed records into ${primary?.name}.`);
+      setMergeReview(null);
       await refreshInsights();
       onChanged();
     } catch (error) {
@@ -288,6 +364,66 @@ export function DataTools({
     } finally {
       setBusy(false);
     }
+  }
+  async function dismissGroup(group: DuplicateGroup) {
+    const reason = dismissReasons[group.match_value]?.trim();
+    if (!reason) return notify("Enter why these records are distinct.");
+    setBusy(true);
+    try {
+      await api(`data/duplicates/${group.entity_type}/dismiss/`, "POST", {
+        first_id: group.records[0].id,
+        second_id: group.records[1].id,
+        reason,
+      });
+      notify("The suggestion was reviewed and dismissed.");
+      await refreshInsights();
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function loadQuality(
+    severity = qualitySeverity,
+    kind = qualityType,
+    page = 1,
+  ) {
+    setBusy(true);
+    try {
+      const response = await api<Quality>(
+        `data/quality/?severity=${severity}&entity_type=${kind}&page=${page}&page_size=50`,
+      );
+      setQuality(response);
+    } catch (error) {
+      notify((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  function downloadQuality() {
+    if (!quality) return;
+    const safe = (value: string | number) =>
+      `"${String(value).replaceAll('"', '""')}"`;
+    const rows = [
+      ["severity", "record_type", "record", "issue", "recommended_action"],
+      ...quality.issues.map((issue) => [
+        issue.severity,
+        issue.type,
+        issue.name,
+        issue.reason,
+        issue.recommended_action,
+      ]),
+    ];
+    const url = URL.createObjectURL(
+      new Blob([rows.map((row) => row.map(safe).join(",")).join("\r\n")], {
+        type: "text/csv;charset=utf-8",
+      }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "atplcrm-data-quality.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -405,8 +541,10 @@ export function DataTools({
           <section className="panel data-panel">
             <div className="panel-heading">
               <div>
-                <h2>CSV import center</h2>
-                <p>Validate every row before writing it to ATPLCRM.</p>
+                <h2>CSV and Excel import center</h2>
+                <p>
+                  Map columns and dry-run every row before writing to ATPLCRM.
+                </p>
               </div>
               <button className="button secondary" onClick={downloadTemplate}>
                 <Download size={16} /> Download template
@@ -438,26 +576,42 @@ export function DataTools({
                   <label className="file-picker">
                     <Upload size={22} />
                     <span>
-                      {filename || "Choose a UTF-8 CSV file"}
-                      <small>Maximum 5,000 rows and 2 MB</small>
+                      {filename || "Choose a UTF-8 CSV or .xlsx file"}
+                      <small>
+                        Maximum 20,000 rows and 8 MB · first worksheet is used
+                      </small>
                     </span>
                     <input
                       type="file"
-                      accept=".csv,text/csv"
+                      accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       onChange={async (event) => {
                         const file = event.target.files?.[0];
                         if (!file) return;
+                        if (file.size > 8_000_000) {
+                          notify("Choose a file no larger than 8 MB.");
+                          event.target.value = "";
+                          return;
+                        }
                         setFilename(file.name);
-                        setCsvText(await file.text());
+                        if (file.name.toLowerCase().endsWith(".xlsx")) {
+                          setFileType("xlsx");
+                          setFileContent(base64File(await file.arrayBuffer()));
+                          setCsvText("");
+                        } else {
+                          setFileType("csv");
+                          setCsvText(await file.text());
+                          setFileContent("");
+                        }
                         setPreview(null);
                         setMapping({});
+                        setWarningsConfirmed(false);
                       }}
                     />
                   </label>
                   <button
                     className="button primary"
                     onClick={validateImport}
-                    disabled={busy || !csvText}
+                    disabled={busy || (!csvText && !fileContent)}
                   >
                     {busy ? (
                       <LoaderCircle className="spin" size={17} />
@@ -522,6 +676,36 @@ export function DataTools({
                         ))}
                       </div>
                     )}
+                    {preview.warnings.length > 0 && (
+                      <div className="import-warnings">
+                        <div className="import-error-heading">
+                          <h3>Possible duplicates to review</h3>
+                          <span className="badge yellow">
+                            {preview.warnings.length} warnings
+                          </span>
+                        </div>
+                        {preview.warnings.slice(0, 12).map((warning, index) => (
+                          <div
+                            key={`${warning.row}-${warning.record_id}-${index}`}
+                          >
+                            <b>{warning.confidence}%</b>
+                            <span>Row {warning.row}</span>
+                            <em>{warning.message}</em>
+                          </div>
+                        ))}
+                        <label className="warning-confirmation">
+                          <input
+                            type="checkbox"
+                            checked={warningsConfirmed}
+                            onChange={(event) =>
+                              setWarningsConfirmed(event.target.checked)
+                            }
+                          />
+                          I reviewed these suggestions and confirm that the
+                          valid rows should be created as separate records.
+                        </label>
+                      </div>
+                    )}
                     <div className="import-actions">
                       <button
                         className="button secondary"
@@ -532,7 +716,11 @@ export function DataTools({
                       <button
                         className="button primary"
                         onClick={runImport}
-                        disabled={!preview.valid_rows || busy}
+                        disabled={
+                          !preview.valid_rows ||
+                          busy ||
+                          (preview.warnings.length > 0 && !warningsConfirmed)
+                        }
                       >
                         Import {preview.valid_rows} valid row
                         {preview.valid_rows === 1 ? "" : "s"}
@@ -567,7 +755,10 @@ export function DataTools({
                         <td>
                           <strong>{job.filename}</strong>
                         </td>
-                        <td>{label(job.entity_type)}</td>
+                        <td>
+                          {label(job.entity_type)} ·{" "}
+                          {job.file_type.toUpperCase()}
+                        </td>
                         <td>
                           <span
                             className={`badge ${job.skipped_rows ? "yellow" : "green"}`}
@@ -600,8 +791,8 @@ export function DataTools({
             <div>
               <h2>Possible duplicate records</h2>
               <p>
-                Matches use normalized company names, domains, email addresses
-                and phone numbers.
+                Exact and high-confidence fuzzy matches use company names,
+                domains, contact names, email addresses and phone numbers.
               </p>
             </div>
             <span className="badge yellow">{duplicates.length} groups</span>
@@ -614,32 +805,143 @@ export function DataTools({
                 >
                   <div>
                     <small>{group.match_type}</small>
-                    <h3>{group.records.length} possible matches</h3>
+                    <h3>{group.confidence}% match confidence</h3>
                   </div>
                   <div className="duplicate-records">
                     {group.records.map((record, index) => (
                       <div key={record.id}>
-                        <span>{index === 0 ? "KEEP" : "MERGE"}</span>
+                        <span>{index === 0 ? "RECORD A" : "RECORD B"}</span>
                         <strong>{record.name}</strong>
                         <small>{record.detail}</small>
                       </div>
                     ))}
                   </div>
                   {canManage && (
-                    <button
-                      className="button secondary"
-                      onClick={() => mergeGroup(group)}
-                      disabled={busy}
-                    >
-                      <Merge size={16} /> Keep first and merge others
-                    </button>
+                    <div className="duplicate-actions">
+                      <button
+                        className="button secondary"
+                        onClick={() => reviewMerge(group)}
+                        disabled={busy}
+                      >
+                        <Merge size={16} /> Review and merge
+                      </button>
+                      <div>
+                        <input
+                          aria-label={`Reason these ${group.records[0].name} records are distinct`}
+                          placeholder="Why are these distinct?"
+                          value={dismissReasons[group.match_value] ?? ""}
+                          onChange={(event) =>
+                            setDismissReasons({
+                              ...dismissReasons,
+                              [group.match_value]: event.target.value,
+                            })
+                          }
+                        />
+                        <button
+                          className="text-button"
+                          onClick={() => void dismissGroup(group)}
+                          disabled={busy}
+                        >
+                          Not duplicates
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </article>
               ))}
             </div>
           ) : (
             <div className="data-empty">
-              <CheckCircle2 size={30} /> No exact duplicate groups found.
+              <CheckCircle2 size={30} /> No unresolved duplicate suggestions
+              found.
+            </div>
+          )}
+          {mergeReview && (
+            <div
+              className="merge-review"
+              role="region"
+              aria-label="Field by field merge review"
+            >
+              <div className="merge-review-heading">
+                <div>
+                  <small>MANUAL RESOLUTION</small>
+                  <h2>Choose the surviving record and every retained value</h2>
+                </div>
+                <button
+                  className="text-button"
+                  onClick={() => setMergeReview(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+              <label className="merge-primary">
+                Surviving record
+                <select
+                  value={mergePrimary}
+                  onChange={(event) => {
+                    const id = event.target.value;
+                    setMergePrimary(id);
+                    const record = mergeReview.records.find(
+                      (item) => item.id === id,
+                    )!;
+                    setMergeSources(
+                      Object.fromEntries(
+                        Object.keys(record.fields).map((field) => [field, id]),
+                      ),
+                    );
+                  }}
+                >
+                  {mergeReview.records.map((record) => (
+                    <option value={record.id} key={record.id}>
+                      {record.name} · {record.detail}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="merge-fields">
+                {Object.keys(mergeReview.records[0].fields).map((field) => (
+                  <div key={field}>
+                    <strong>{label(field.replace(/_id$/, ""))}</strong>
+                    {mergeReview.records.map((record) => (
+                      <label
+                        key={record.id}
+                        className={
+                          mergeSources[field] === record.id ? "selected" : ""
+                        }
+                      >
+                        <input
+                          type="radio"
+                          name={`merge-${field}`}
+                          value={record.id}
+                          checked={mergeSources[field] === record.id}
+                          onChange={() =>
+                            setMergeSources({
+                              ...mergeSources,
+                              [field]: record.id,
+                            })
+                          }
+                        />
+                        <span>{record.fields[field] || "Not provided"}</span>
+                        <small>{record.name}</small>
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <div className="merge-footer">
+                <p>
+                  All linked contacts, pursuits, activities, stakeholders and
+                  partner references move to the surviving record. The other
+                  record is archived.
+                </p>
+                <button
+                  className="button primary"
+                  onClick={() => void mergeGroup()}
+                  disabled={busy}
+                >
+                  <Merge size={16} /> Confirm reviewed merge
+                </button>
+              </div>
             </div>
           )}
         </section>
@@ -685,13 +987,47 @@ export function DataTools({
                   reliable.
                 </p>
               </div>
-              <span className="badge yellow">{quality.issue_count} issues</span>
+              <div className="quality-actions">
+                <select
+                  aria-label="Quality severity"
+                  value={qualitySeverity}
+                  onChange={(event) => {
+                    setQualitySeverity(event.target.value);
+                    void loadQuality(event.target.value, qualityType);
+                  }}
+                >
+                  <option value="all">All severities</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+                <select
+                  aria-label="Quality record type"
+                  value={qualityType}
+                  onChange={(event) => {
+                    setQualityType(event.target.value);
+                    void loadQuality(qualitySeverity, event.target.value);
+                  }}
+                >
+                  <option value="all">All records</option>
+                  <option value="company">Companies</option>
+                  <option value="contact">Contacts</option>
+                  <option value="pursuit">Pursuits</option>
+                </select>
+                <button className="button secondary" onClick={downloadQuality}>
+                  <Download size={15} /> Export displayed
+                </button>
+                <span className="badge yellow">
+                  {quality.filtered_issue_count} issues
+                </span>
+              </div>
             </div>
             {quality.issues.length ? (
               <div className="quality-list">
                 {quality.issues.map((issue, index) => (
-                  <a
-                    href={`#${issue.route}`}
+                  <button
+                    type="button"
+                    onClick={() => onOpen(issue.type, issue.id)}
                     key={`${issue.type}-${issue.id}-${index}`}
                   >
                     <span
@@ -703,14 +1039,52 @@ export function DataTools({
                       <strong>{issue.name}</strong>
                       <small>{issue.type}</small>
                     </span>
-                    <em>{issue.reason}</em>
-                  </a>
+                    <span>
+                      <em>{issue.reason}</em>
+                      <small>{issue.recommended_action}</small>
+                    </span>
+                  </button>
                 ))}
               </div>
             ) : (
               <div className="data-empty">
                 <CheckCircle2 size={30} /> All checked records meet the current
                 quality rules.
+              </div>
+            )}
+            {quality.pages > 1 && (
+              <div className="quality-pagination">
+                <span>
+                  Page {quality.page} of {quality.pages}
+                </span>
+                <div>
+                  <button
+                    className="button secondary"
+                    disabled={quality.page <= 1 || busy}
+                    onClick={() =>
+                      void loadQuality(
+                        qualitySeverity,
+                        qualityType,
+                        quality.page - 1,
+                      )
+                    }
+                  >
+                    Previous
+                  </button>
+                  <button
+                    className="button secondary"
+                    disabled={quality.page >= quality.pages || busy}
+                    onClick={() =>
+                      void loadQuality(
+                        qualitySeverity,
+                        qualityType,
+                        quality.page + 1,
+                      )
+                    }
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             )}
           </section>

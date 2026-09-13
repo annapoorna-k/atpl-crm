@@ -1,4 +1,9 @@
+import base64
+import io
 from datetime import date, timedelta
+from uuid import UUID
+
+from openpyxl import Workbook
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -87,3 +92,49 @@ def test_lead_import_validates_future_action_date(client):
     response = client.post("/api/v1/data/imports/", json=payload, headers={"X-CSRFToken": csrf})
     assert response.status_code == 201, response.text
     assert response.json()["imported_rows"] == 1
+
+
+def test_excel_contact_import_preserves_complete_relationship_fields(client):
+    csrf = login(client)
+    workbook = Workbook(); sheet = workbook.active
+    headers = ["company_name", "first_name", "last_name", "country", "owner_email", "sourced_by_email", "email", "job_title", "seniority", "phone", "mobile", "linkedin_url", "city", "source_channel", "source_detail", "engagement_status", "do_not_contact", "consent_basis", "notes"]
+    sheet.append(headers)
+    sheet.append(["Northstar Industries", "Excel", "Contact", "United States", "alex@atplcrm.local", "maya@atplcrm.local", "excel.contact@example.com", "VP Operations", "VP or Head", "+1 555 0188", "+1 555 0189", "https://linkedin.com/in/excel-contact", "Detroit", "Exhibition or event", "Manufacturing Summit", "Engaged", "No", "Business card or event", "Prefers email"])
+    stream = io.BytesIO(); workbook.save(stream)
+    payload = {"entity_type": "contacts", "filename": "contacts.xlsx", "file_type": "xlsx", "file_content": base64.b64encode(stream.getvalue()).decode(), "mapping": {}}
+    preview = client.post("/api/v1/data/imports/preview/", json=payload, headers={"X-CSRFToken": csrf})
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["valid_rows"] == 1
+    response = client.post("/api/v1/data/imports/", json=payload, headers={"X-CSRFToken": csrf})
+    assert response.status_code == 201, response.text
+    contact = next(item for item in client.get("/api/v1/bootstrap/").json()["contacts"] if item["email"] == "excel.contact@example.com")
+    assert contact["sourced_by"] == "Maya Patel"
+    assert contact["seniority"] == "VP or Head"
+    assert contact["source_detail"] == "Manufacturing Summit"
+    assert contact["consent_basis"] == "Business card or event"
+
+
+def test_fuzzy_duplicate_can_be_field_merged_or_dismissed_and_quality_filters(client):
+    csrf = login(client)
+    with Session(engine) as db:
+        tenant = db.scalar(select(Tenant).where(Tenant.key == "test-workspace")); owner = db.scalar(select(User).where(User.tenant_id == tenant.id, User.email == "alex@atplcrm.local"))
+        first = Company(**stamp(owner), name="Meridian Analytics Group", country="United Kingdom", domain="meridian-one.example", industry="Technology", owner_id=owner.id)
+        second = Company(**stamp(owner), name="Meridian Analytic Group", country="United Kingdom", domain="meridian-two.example", industry="Consulting", owner_id=owner.id)
+        distinct_a = Company(**stamp(owner), name="Summit Advisory Partners", country="India", domain="summit-a.example", owner_id=owner.id)
+        distinct_b = Company(**stamp(owner), name="Summit Advisery Partners", country="India", domain="summit-b.example", owner_id=owner.id)
+        db.add_all([first, second, distinct_a, distinct_b]); db.commit()
+        ids = [str(item.id) for item in (first, second, distinct_a, distinct_b)]
+    review = client.get("/api/v1/data/duplicates/").json()
+    merge_group = next(group for group in review["groups"] if {record["id"] for record in group["records"]} == set(ids[:2]))
+    assert merge_group["confidence"] >= 88 and "Similar company name" in merge_group["match_reasons"]
+    merged = client.post("/api/v1/data/duplicates/companies/merge/", json={"primary_id": ids[0], "duplicate_id": ids[1], "field_sources": {"domain": ids[1], "industry": ids[0]}}, headers={"X-CSRFToken": csrf})
+    assert merged.status_code == 200, merged.text
+    with Session(engine) as db:
+        surviving = db.get(Company, UUID(ids[0])); assert surviving.domain == "meridian-two.example" and surviving.industry == "Technology"
+    dismissed = client.post("/api/v1/data/duplicates/companies/dismiss/", json={"first_id": ids[2], "second_id": ids[3], "reason": "Separate legal entities with different registrations."}, headers={"X-CSRFToken": csrf})
+    assert dismissed.status_code == 200, dismissed.text
+    refreshed = client.get("/api/v1/data/duplicates/").json()
+    assert not any({record["id"] for record in group["records"]} == set(ids[2:]) for group in refreshed["groups"])
+    quality = client.get("/api/v1/data/quality/?severity=low&entity_type=company&page_size=2").json()
+    assert quality["filtered_issue_count"] >= len(quality["issues"])
+    assert all(item["severity"] == "Low" and item["type"] == "Company" for item in quality["issues"])
