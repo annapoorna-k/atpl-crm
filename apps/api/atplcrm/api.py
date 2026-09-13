@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from . import presenters as out
 from .constants import MANAGEMENT
 from .database import get_db
-from .models import Activity, AppSession, Artifact, AuditEvent, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PreSalesRequest, Pursuit, PursuitAction, PursuitContact, TeamRole, User, ValueHistory, WorkspaceReference
+from .models import Activity, AppSession, Artifact, AuditEvent, CommercialSetting, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PartnerInvolvement, PreSalesRequest, Pursuit, PursuitAction, PursuitContact, TeamRole, User, ValueHistory, WorkspaceReference
 from .references import contract as reference_contract, probability as stage_probability, require_code
 from .schemas import ActivityInput, ArtifactInput, CompanyInput, CompanyPatch, ContactInput, ContactPatch, ConversionInput, DisqualifyInput, LeadInput, LeadStatusInput, LoginInput, NurtureInput, ProbabilityInput, RequestInput, RequestPatch, RestrictionInput, StageInput, TeamInput, ValueInput, WorkInput
 from .security import current_user, delete_session, hash_token, new_session, set_session_cookie, verify_password
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/v1")
 
 
 def user_options() -> tuple:
-    return (selectinload(Pursuit.company), selectinload(Pursuit.owner), selectinload(Pursuit.sourced_by), selectinload(Pursuit.holder), selectinload(Pursuit.blocker_owner), selectinload(Pursuit.lead), selectinload(Pursuit.opportunity).selectinload(Opportunity.primary_contact), selectinload(Pursuit.opportunity).selectinload(Opportunity.values), selectinload(Pursuit.opportunity).selectinload(Opportunity.partners), selectinload(Pursuit.team).selectinload(TeamRole.user), selectinload(Pursuit.stakeholders).selectinload(PursuitContact.contact))
+    return (selectinload(Pursuit.company), selectinload(Pursuit.owner), selectinload(Pursuit.sourced_by), selectinload(Pursuit.holder), selectinload(Pursuit.blocker_owner), selectinload(Pursuit.lead), selectinload(Pursuit.opportunity).selectinload(Opportunity.primary_contact), selectinload(Pursuit.opportunity).selectinload(Opportunity.values), selectinload(Pursuit.opportunity).selectinload(Opportunity.partners).selectinload(PartnerInvolvement.company), selectinload(Pursuit.opportunity).selectinload(Opportunity.partners).selectinload(PartnerInvolvement.contact), selectinload(Pursuit.team).selectinload(TeamRole.user), selectinload(Pursuit.stakeholders).selectinload(PursuitContact.contact))
 
 
 def load_pursuit(db: Session, user: User, identifier: UUID, *, lock: bool = False) -> Pursuit:
@@ -35,7 +35,7 @@ def load_pursuit(db: Session, user: User, identifier: UUID, *, lock: bool = Fals
 
 
 def load_opportunity(db: Session, user: User, identifier: UUID, *, lock: bool = False) -> Opportunity:
-    statement = scoped(db, Opportunity, user).where(Opportunity.id == identifier).options(selectinload(Opportunity.pursuit).options(*user_options()), selectinload(Opportunity.primary_contact), selectinload(Opportunity.values), selectinload(Opportunity.partners))
+    statement = scoped(db, Opportunity, user).where(Opportunity.id == identifier).options(selectinload(Opportunity.pursuit).options(*user_options()), selectinload(Opportunity.primary_contact), selectinload(Opportunity.values), selectinload(Opportunity.partners).selectinload(PartnerInvolvement.company), selectinload(Opportunity.partners).selectinload(PartnerInvolvement.contact))
     if lock and db.bind and db.bind.dialect.name != "sqlite":
         statement = statement.with_for_update()
     item = db.scalar(statement)
@@ -103,10 +103,11 @@ def bootstrap(db: Session = Depends(get_db), user: User = Depends(current_user),
     activities = [item for item in activity_rows if not item.pursuit or not item.pursuit.opportunity or can_value(db, user, item.pursuit.opportunity)][:50]
     notifications = db.scalars(scoped(db, Notification, user).where(Notification.recipient_id == user.id).order_by(Notification.created_at.desc()).limit(50)).all()
     rates = db.scalars(scoped(db, ExchangeRate, user).order_by(ExchangeRate.currency)).all()
-    references = reference_contract(db, user); references["currencies"] = [{"id": str(item.id), "currency": item.currency, "rate": str(item.rate), "source": item.source} for item in rates]
+    references = reference_contract(db, user); references["currencies"] = [{"id": str(item.id), "currency": item.currency, "rate": str(item.rate), "source": item.source, "effective_date": item.effective_date} for item in rates]
+    commercial_setting = db.scalar(scoped(db, CommercialSetting, user))
     admin_users = db.scalars(select(User).where(User.tenant_id == user.tenant_id).order_by(User.is_active.desc(), User.first_name, User.last_name)).all() if user.level == "Administrator" else []
     admin_references = db.scalars(scoped(db, WorkspaceReference, user).order_by(WorkspaceReference.category, WorkspaceReference.sort_order, WorkspaceReference.label)).all() if user.level == "Administrator" else []
-    return {"user": out.person(user), "instance": settings.instance_type, "mode": settings.app_mode, "today": date.today(), "users": [out.person(item) for item in users], "admin_users": [out.person(item) for item in admin_users], "admin_references": [{"id": str(item.id), "category": item.category, "code": item.code, "label": item.label, "numeric_value": item.numeric_value, "sort_order": item.sort_order, "active": item.active} for item in admin_references], "companies": [out.company(item) for item in companies], "contacts": [out.contact(db, item) for item in contacts], "leads": [out.lead(db, item, user) for item in leads], "opportunities": [out.opportunity(db, item, user) for item in opportunities], "requests": [out.request(item) for item in requests], "activities": [out.activity(item) for item in activities], "notifications": [{"id": str(item.id), "message": item.message, "category": item.category, "severity": item.severity, "read": item.read, "read_at": item.read_at, "pursuit_id": str(item.pursuit_id) if item.pursuit_id else None, "created_at": item.created_at} for item in notifications], "reference": references}
+    return {"user": out.person(user), "instance": settings.instance_type, "mode": settings.app_mode, "today": date.today(), "users": [out.person(item) for item in users], "admin_users": [out.person(item) for item in admin_users], "admin_references": [{"id": str(item.id), "category": item.category, "code": item.code, "label": item.label, "numeric_value": item.numeric_value, "sort_order": item.sort_order, "active": item.active} for item in admin_references], "commercial_settings": {"partner_share_warning_pct": str(commercial_setting.partner_share_warning_pct if commercial_setting else 40), "fx_movement_notice_pct": str(commercial_setting.fx_movement_notice_pct if commercial_setting else 5)}, "companies": [out.company(item) for item in companies], "contacts": [out.contact(db, item) for item in contacts], "leads": [out.lead(db, item, user) for item in leads], "opportunities": [out.opportunity(db, item, user) for item in opportunities], "requests": [out.request(item) for item in requests], "activities": [out.activity(item) for item in activities], "notifications": [{"id": str(item.id), "message": item.message, "category": item.category, "severity": item.severity, "read": item.read, "read_at": item.read_at, "pursuit_id": str(item.pursuit_id) if item.pursuit_id else None, "created_at": item.created_at} for item in notifications], "reference": references}
 
 
 @router.post("/companies/", status_code=201)
@@ -222,7 +223,8 @@ def convert_lead(identifier: UUID, payload: ConversionInput, db: Session = Depen
     if not rate or (settings.instance_type == "US" and payload.currency != "USD"): raise http_error(422, {"currency": "No permitted reference rate for this currency."})
     contact = get_scoped(db, Contact, user, payload.primary_contact)
     if contact.company_id != pursuit.company_id: raise http_error(422, {"primary_contact": "Choose a contact at this client company."})
-    opportunity = Opportunity(**stamp(user), pursuit_id=pursuit.id, origin_lead_id=lead.id, customer_need=payload.customer_need, scope_summary=payload.scope_summary, primary_contact_id=contact.id, current_value=payload.current_value, currency=payload.currency, fx_rate=rate.rate, value_usd=money(payload.current_value * rate.rate), service_line=payload.service_line, expected_close_date=payload.expected_close_date, opportunity_type=payload.opportunity_type, engagement_type=payload.engagement_type, probability=20)
+    initial_probability = stage_probability(db, user, "discovery")
+    opportunity = Opportunity(**stamp(user), pursuit_id=pursuit.id, origin_lead_id=lead.id, customer_need=payload.customer_need, scope_summary=payload.scope_summary, primary_contact_id=contact.id, current_value=payload.current_value, currency=payload.currency, fx_rate=rate.rate, value_usd=money(payload.current_value * rate.rate), service_line=payload.service_line, expected_close_date=payload.expected_close_date, opportunity_type=payload.opportunity_type, engagement_type=payload.engagement_type, probability=initial_probability, probability_stage_default=initial_probability)
     db.add(opportunity); db.flush(); db.add(ValueHistory(**stamp(user), opportunity_id=opportunity.id, value_type="Initial estimate", amount=payload.current_value, currency=payload.currency, fx_rate=rate.rate))
     existing = db.scalar(scoped(db, PursuitContact, user).where(PursuitContact.pursuit_id == pursuit.id, PursuitContact.contact_id == contact.id))
     if not existing: db.add(PursuitContact(**stamp(user), pursuit_id=pursuit.id, contact_id=contact.id, role="Champion"))
@@ -283,28 +285,33 @@ def update_stage(identifier: UUID, payload: StageInput, db: Session = Depends(ge
         opportunity.revisit_date = future_date(payload.revisit_date, "revisit_date")
     if payload.stage == "lost":
         if not payload.loss_reason: raise http_error(422, {"loss_reason": "Choose a loss reason."})
+        if not payload.close_notes: raise http_error(422, {"close_notes": "Add the loss context and next learning."})
         require_code(db, user, "loss_reasons", payload.loss_reason, "loss_reason")
-        opportunity.loss_reason, opportunity.competitor_name = payload.loss_reason, payload.competitor_name
+        if payload.revisit_date: opportunity.revisit_date = future_date(payload.revisit_date, "revisit_date")
+        opportunity.loss_reason, opportunity.competitor_name, opportunity.competitor_status, opportunity.close_notes = payload.loss_reason, payload.competitor_name, payload.competitor_status, payload.close_notes
     if payload.stage == "won":
         if not can_value(db, user, opportunity): raise http_error(403, "Value access is required to close this deal.")
-        if not payload.contract_number or not payload.contract_date or payload.final_value is None: raise http_error(422, "Contract number, date and final value are required.")
-        evidence = db.scalar(scoped(db, Artifact, user).where(Artifact.pursuit_id == pursuit.id, Artifact.artifact_type.in_(["Contract", "Purchase order", "SOW"])))
-        if not evidence: raise http_error(422, "Register the final Contract, Purchase order or SOW evidence link first.")
-        opportunity.contract_number, opportunity.contract_date = payload.contract_number, payload.contract_date
+        if not payload.contract_number or not payload.contract_date or payload.final_value is None or not payload.project_start or not payload.duration_months or not payload.final_evidence_artifact_id: raise http_error(422, "Contract/PO number, date, final value, project start, duration and final evidence are required.")
+        evidence = get_scoped(db, Artifact, user, payload.final_evidence_artifact_id)
+        if evidence.pursuit_id != pursuit.id or evidence.artifact_type not in {"Contract", "Purchase order", "SOW"}: raise http_error(422, {"final_evidence_artifact_id": "Choose a Contract, Purchase order or SOW registered on this pursuit."})
+        if payload.approval_recorded and not payload.approval_note: raise http_error(422, {"approval_note": "Add the approval note or linked-email reference."})
+        opportunity.contract_number, opportunity.contract_date, opportunity.project_start, opportunity.duration_months = payload.contract_number, payload.contract_date, payload.project_start, payload.duration_months
+        opportunity.handoff_notes, opportunity.close_notes, opportunity.final_evidence_artifact_id = payload.handoff_notes, payload.close_notes, evidence.id
+        opportunity.approval_recorded, opportunity.approval_note = payload.approval_recorded, payload.approval_note
         record_value(db, user, opportunity, payload.final_value, "Final contract value")
-    old = opportunity.stage; opportunity.stage = payload.stage; opportunity.probability = stage_probability(db, user, payload.stage); opportunity.probability_note = ""
+    old = opportunity.stage; default_probability = stage_probability(db, user, payload.stage); opportunity.stage = payload.stage; opportunity.probability = default_probability; opportunity.probability_stage_default = default_probability; opportunity.probability_note = ""
     now = datetime.now(timezone.utc)
     if payload.stage == "presales" and not pursuit.presales_assigned_at: pursuit.presales_assigned_at = now
     if payload.stage == "proposal" and not pursuit.proposal_sent_at: pursuit.proposal_sent_at = now
     if payload.stage in {"won", "lost"}: pursuit.closed_at = now
     old_version = pursuit.version; pursuit.version += 1
-    audit(db, user, "Stage changed", pursuit, payload.reason, before={"stage": old, "version": old_version}, after={"stage": payload.stage, "version": pursuit.version}); db.commit()
+    audit(db, user, "Stage changed", pursuit, payload.reason, before={"stage": old, "version": old_version}, after={"stage": payload.stage, "version": pursuit.version, "stage_probability": default_probability, "loss_reason": opportunity.loss_reason, "contract_number": opportunity.contract_number, "approval_recorded": opportunity.approval_recorded}); db.commit()
     return out.opportunity(db, load_opportunity(db, user, identifier), user)
 
 
 @router.post("/opportunities/{identifier}/value/")
 def update_value(identifier: UUID, payload: ValueInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    opportunity = load_opportunity(db, user, identifier); pursuit = opportunity.pursuit
+    opportunity = load_opportunity(db, user, identifier, lock=True); pursuit = opportunity.pursuit
     if not can_value(db, user, opportunity) or (user.id != pursuit.owner_id and user.level not in MANAGEMENT): raise http_error(403, "Only the commercial owner or management can update value.")
     if payload.value_type not in {"Initial estimate", "Proposal value", "Revised proposal", "Negotiated value", "Final contract value"}: raise http_error(422, {"value_type": "Choose a valid value type."})
     previous = str(opportunity.current_value); record_value(db, user, opportunity, payload.amount, payload.value_type, payload.note); audit(db, user, "Value recorded", pursuit, payload.value_type, before={"amount": previous}, after={"amount": str(payload.amount)}); db.commit()
@@ -339,7 +346,7 @@ def assign_team(identifier: UUID, payload: TeamInput, db: Session = Depends(get_
 @router.post("/opportunities/{identifier}/probability/")
 def update_probability(identifier: UUID, payload: ProbabilityInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
     if user.level not in {"Manager", "Executive"}: raise http_error(403, "A Manager or Executive must override probability.")
-    opportunity = load_opportunity(db, user, identifier); opportunity.probability, opportunity.probability_note = payload.probability, payload.reason; audit(db, user, "Probability overridden", opportunity.pursuit, payload.reason, after={"probability": payload.probability}); db.commit()
+    opportunity = load_opportunity(db, user, identifier); before = {"probability": opportunity.probability, "stage_default": opportunity.probability_stage_default}; opportunity.probability, opportunity.probability_note = payload.probability, payload.reason; audit(db, user, "Probability overridden", opportunity.pursuit, payload.reason, before=before, after={"probability": payload.probability, "stage_default": opportunity.probability_stage_default}); db.commit()
     return out.opportunity(db, load_opportunity(db, user, identifier), user)
 
 

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from . import presenters as out
 from .constants import LOCKED_REFERENCE_CATEGORIES, REFERENCE_DEFAULTS
 from .database import get_db
-from .models import AppSession, ExchangeRate, User, WorkspaceReference
+from .models import AppSession, ExchangeRate, ExchangeRateHistory, User, WorkspaceReference
 from .schemas import AdminUserInput, AdminUserPatch, RatePatch, ReferenceInput, ReferencePatch
 from .security import current_user
 from .services import audit, get_scoped, http_error, stamp
@@ -68,6 +68,7 @@ def update_reference(identifier: UUID, payload: ReferencePatch, db: Session = De
 def update_rate(identifier: UUID, payload: RatePatch, db: Session = Depends(get_db), admin: User = Depends(administrator)):
     item = get_scoped(db, ExchangeRate, admin, identifier)
     if item.currency == "USD" and payload.rate != 1: raise http_error(422, {"rate": "USD is the reporting base and must remain 1."})
-    before = {"rate": str(item.rate), "source": item.source}; item.rate, item.source, item.updated_by_id = payload.rate, payload.source, admin.id
+    before = {"rate": str(item.rate), "source": item.source}; old_rate = item.rate; item.rate, item.source, item.updated_by_id = payload.rate, payload.source, admin.id
+    db.add(ExchangeRateHistory(**stamp(admin), currency=item.currency, old_rate=old_rate, new_rate=payload.rate, source=payload.source, change_type="Manual override"))
     audit(db, admin, "Exchange rate updated", detail=item.currency, before=before, after={"rate": str(payload.rate), "source": payload.source}); db.commit(); db.refresh(item)
     return {"id": str(item.id), "currency": item.currency, "rate": str(item.rate), "source": item.source}

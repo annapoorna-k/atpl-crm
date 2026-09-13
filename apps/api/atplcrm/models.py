@@ -164,7 +164,9 @@ class Opportunity(RecordMixin, Base):
     value_usd: Mapped[Decimal] = mapped_column(Numeric(18, 2))
     expected_close_date: Mapped[date] = mapped_column(Date)
     probability: Mapped[int] = mapped_column(Integer, default=20)
+    probability_stage_default: Mapped[int] = mapped_column(Integer, default=20)
     probability_note: Mapped[str] = mapped_column(Text, default="")
+    gross_margin_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     restricted: Mapped[bool] = mapped_column(Boolean, default=False)
     restriction_reason: Mapped[str] = mapped_column(Text, default="")
     revisit_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -177,6 +179,9 @@ class Opportunity(RecordMixin, Base):
     duration_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
     handoff_notes: Mapped[str] = mapped_column(Text, default="")
     approval_recorded: Mapped[bool] = mapped_column(Boolean, default=False)
+    approval_note: Mapped[str] = mapped_column(Text, default="")
+    close_notes: Mapped[str] = mapped_column(Text, default="")
+    final_evidence_artifact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_artifact.id", ondelete="RESTRICT"), nullable=True)
     pursuit: Mapped[Pursuit] = relationship(back_populates="opportunity")
     origin_lead: Mapped[Lead] = relationship(back_populates="converted_opportunity")
     primary_contact: Mapped[Contact] = relationship()
@@ -207,6 +212,24 @@ class ExchangeRate(RecordMixin, Base):
     currency: Mapped[str] = mapped_column(String(3))
     rate: Mapped[Decimal] = mapped_column(Numeric(18, 8))
     source: Mapped[str] = mapped_column(String(100), default="Demo reference; not live market data")
+    effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+class ExchangeRateHistory(RecordMixin, Base):
+    __tablename__ = "crm_exchangeratehistory"
+    currency: Mapped[str] = mapped_column(String(3), index=True)
+    old_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
+    new_rate: Mapped[Decimal] = mapped_column(Numeric(18, 8))
+    source: Mapped[str] = mapped_column(String(100))
+    effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    change_type: Mapped[str] = mapped_column(String(30), default="Manual override")
+
+
+class CommercialSetting(RecordMixin, Base):
+    __tablename__ = "crm_commercialsetting"
+    __table_args__ = (UniqueConstraint("tenant_id", name="crm_commercialsetting_tenant_uniq"),)
+    partner_share_warning_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=40)
+    fx_movement_notice_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=5)
 
 
 class WorkspaceReference(RecordMixin, Base):
@@ -314,9 +337,15 @@ class PartnerInvolvement(RecordMixin, Base):
     fee_basis: Mapped[str] = mapped_column(String(60))
     share_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=0)
     fixed_fee: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0)
+    applies_to: Mapped[str] = mapped_column(String(80), default="This contract only")
+    duration_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="Proposed")
+    agreement_artifact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_artifact.id", ondelete="RESTRICT"), nullable=True)
     terms_notes: Mapped[str] = mapped_column(Text, default="")
     opportunity: Mapped[Opportunity] = relationship(back_populates="partners")
+    company: Mapped[Company] = relationship()
+    contact: Mapped[Contact] = relationship()
+    agreement_artifact: Mapped[Artifact | None] = relationship()
 
 
 class Artifact(RecordMixin, Base):

@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from .models import Activity, Company, Contact, Opportunity, PreSalesRequest, Pursuit, PursuitAction, User
 from .references import probability as stage_probability
-from .services import can_value, can_work, flags, net_usd, utc
+from .services import can_value, can_work, commercial_totals, flags, utc
 
 
 MILESTONES = (
@@ -46,10 +47,11 @@ def lead(db: Session, item, user: User) -> dict:
 
 
 def opportunity(db: Session, item: Opportunity, user: User) -> dict:
-    data = {**pursuit(db, item.pursuit, user), "stage": item.stage, "opportunity_type": item.opportunity_type, "customer_need": item.customer_need, "scope_summary": item.scope_summary, "service_line": item.service_line, "engagement_type": item.engagement_type, "primary_contact_id": str(item.primary_contact_id), "primary_contact": item.primary_contact.name, "expected_close_date": item.expected_close_date, "probability": item.probability, "probability_note": item.probability_note, "stage_probability": stage_probability(db, user, item.stage), "restricted": item.restricted, "revisit_date": item.revisit_date, "loss_reason": item.loss_reason, "contract_number": item.contract_number, "approval_recorded": item.approval_recorded}
+    data = {**pursuit(db, item.pursuit, user), "stage": item.stage, "opportunity_type": item.opportunity_type, "customer_need": item.customer_need, "scope_summary": item.scope_summary, "service_line": item.service_line, "engagement_type": item.engagement_type, "primary_contact_id": str(item.primary_contact_id), "primary_contact": item.primary_contact.name, "expected_close_date": item.expected_close_date, "probability": item.probability, "probability_note": item.probability_note, "stage_probability": item.probability_stage_default, "restricted": item.restricted, "revisit_date": item.revisit_date, "loss_reason": item.loss_reason, "competitor_name": item.competitor_name, "competitor_status": item.competitor_status, "contract_number": item.contract_number, "contract_date": item.contract_date, "project_start": item.project_start, "duration_months": item.duration_months, "handoff_notes": item.handoff_notes, "close_notes": item.close_notes, "approval_recorded": item.approval_recorded, "approval_note": item.approval_note, "gross_margin_pct": str(item.gross_margin_pct) if item.gross_margin_pct is not None else None, "final_evidence_artifact_id": str(item.final_evidence_artifact_id) if item.final_evidence_artifact_id else None}
+    data["can_edit_commercial"] = can_value(db, user, item) and (user.id == item.pursuit.owner_id or user.level in {"Administrator", "Manager", "Executive"})
     if can_value(db, user, item):
-        net = net_usd(db, item)
-        data.update(current_value=str(item.current_value), currency=item.currency, fx_rate=str(item.fx_rate), value_usd=str(item.value_usd), net_value_usd=str(net) if net is not None else None, values=[{"id": str(value.id), "type": value.value_type, "amount": str(value.amount), "currency": value.currency, "date": value.created_at, "note": value.note} for value in sorted(item.values, key=lambda row: row.created_at, reverse=True)])
+        totals = commercial_totals(db, item)
+        data.update(current_value=str(item.current_value), currency=item.currency, fx_rate=str(item.fx_rate), value_usd=str(item.value_usd), net_value_local=str(totals["net_local"]) if totals["net_local"] is not None else None, net_value_usd=str(totals["net_usd"]) if totals["net_usd"] is not None else None, partner_deduction_local=str(totals["deduction_local"]), total_partner_share_pct=str(totals["total_partner_share_pct"]), partner_share_warning_pct=str(totals["warning_ceiling_pct"]), commercial_warnings=totals["warnings"], partners=[{"id": str(partner.id), "company_id": str(partner.company_id), "company": partner.company.name, "contact_id": str(partner.contact_id), "contact": partner.contact.name, "role": partner.role, "introduced": partner.introduced, "fee_basis": partner.fee_basis, "share_pct": str(partner.share_pct), "fixed_fee": str(partner.fixed_fee), "applies_to": partner.applies_to, "duration_months": partner.duration_months, "status": partner.status, "agreement_artifact_id": str(partner.agreement_artifact_id) if partner.agreement_artifact_id else None, "terms_notes": partner.terms_notes} for partner in item.partners if not partner.is_deleted], values=[{"id": str(value.id), "type": value.value_type, "amount": str(value.amount), "currency": value.currency, "fx_rate": str(value.fx_rate), "usd_amount": str((value.amount * value.fx_rate).quantize(Decimal("0.01"))), "date": value.created_at, "note": value.note} for value in sorted(item.values, key=lambda row: row.created_at, reverse=True)])
     return data
 
 

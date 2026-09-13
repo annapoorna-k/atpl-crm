@@ -14,7 +14,7 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.7, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.8, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
@@ -33,11 +33,14 @@ This is **v0.7, an initial working core**, using synthetic data and local passwo
 - Server-paginated company, contact, lead and opportunity lists with search, owner, workflow, priority, country and sort controls; reusable personal saved views; manager-only bulk owner/Ball-in-Court assignment with audit and concurrent-edit protection.
 - Editable opportunity stakeholders with company-bound contact selection, relationship roles, and protection against removing the active primary contact.
 - Net USD pipeline and weighted totals, lead status distribution, CSV forecast export with spreadsheet-injection escaping.
+- Commercial management for multiple partners, contract/gross-margin/fixed/commission/spread terms, evidence status, share warnings, net local/USD values and partner performance/undocumented-term reporting.
+- Per-opportunity fixed-rate updates, administrator rate overrides and confirmed open-deal re-baselining, plus a configurable monthly published-rate adapter with movement and failure alerts.
+- Complete Won/Lost evidence capture, project and delivery-handoff fields, optional commercial approval evidence and stored stage-default probability beside overrides.
 - Tenant-scoped APIs, session/CSRF protection, non-root app/web containers, persistent database/queue volumes, migration-before-start dependencies.
 
 See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. The dashboard bootstrap API is intended for the seeded/early dataset; full activity pagination, analytics and scale benchmarks are still required.
 
-Before approving a local release, use the [manual end-to-end testing handbook](docs/ATPLCRM_MANUAL_E2E_TESTING.md). An editable Word copy with embedded UI screenshots is available at `docs/ATPLCRM_v0.7_Manual_E2E_Testing_Handbook.docx`.
+Before approving a local release, use the [manual end-to-end testing handbook](docs/ATPLCRM_MANUAL_E2E_TESTING.md). An editable Word copy with embedded UI screenshots is available at `docs/ATPLCRM_v0.8_Manual_E2E_Testing_Handbook.docx`.
 
 ## Verify
 
@@ -58,6 +61,19 @@ npm run test:e2e
 ```
 
 Browser workflow testing creates a synthetic acceptance lead/opportunity. Use a disposable local deployment for repeated acceptance suites. Tests read the generated local password from `.env` without printing it.
+
+## Published exchange-rate source
+
+Set `FX_RATES_URL` only after approving a published source. The monthly adapter expects HTTPS JSON with rates expressed as USD per one unit of currency:
+
+```json
+{
+  "effective_date": "2026-09-01",
+  "rates_to_usd": { "AED": 0.272294, "EUR": 1.09, "USD": 1 }
+}
+```
+
+`FX_RATE_SOURCE` records the human-readable source name. A refresh updates the reference table for future opportunities; existing opportunities keep their stored rate until their commercial owner updates one deal or an Administrator confirms re-baselining of an open selected set.
 
 ## Operate
 

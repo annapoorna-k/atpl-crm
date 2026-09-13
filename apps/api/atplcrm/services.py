@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .constants import MANAGEMENT
-from .models import AuditEvent, Opportunity, PartnerInvolvement, Pursuit, TeamRole, User, ValueHistory
+from .models import AuditEvent, CommercialSetting, Opportunity, PartnerInvolvement, Pursuit, TeamRole, User, ValueHistory
 
 
 def utc(value: datetime) -> datetime:
@@ -61,17 +61,60 @@ def money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"))
 
 
-def net_usd(db: Session, opportunity: Opportunity) -> Decimal | None:
+def commercial_totals(db: Session, opportunity: Opportunity) -> dict:
     deduction = Decimal("0")
+    total_share = Decimal("0")
+    unresolved: list[str] = []
     partners = db.scalars(scoped(db, PartnerInvolvement, opportunity).where(PartnerInvolvement.opportunity_id == opportunity.id)).all()
     for partner in partners:
+        if partner.status == "Lapsed or superseded":
+            continue
         if partner.fee_basis == "Percentage of contract value":
             deduction += opportunity.current_value * partner.share_pct / 100
+            total_share += partner.share_pct
+        elif partner.fee_basis == "Commission":
+            deduction += opportunity.current_value * partner.share_pct / 100
+            total_share += partner.share_pct
+        elif partner.fee_basis == "Percentage of gross margin":
+            total_share += partner.share_pct
+            if opportunity.gross_margin_pct is None:
+                unresolved.append("Gross margin is required for percentage-of-margin partner terms.")
+            else:
+                deduction += opportunity.current_value * opportunity.gross_margin_pct / 100 * partner.share_pct / 100
         elif partner.fee_basis == "Fixed fee":
             deduction += partner.fixed_fee
+        elif partner.fee_basis == "Rate card spread":
+            if partner.share_pct > 0:
+                deduction += opportunity.current_value * partner.share_pct / 100
+                total_share += partner.share_pct
+            elif partner.fixed_fee > 0:
+                deduction += partner.fixed_fee
+            else:
+                unresolved.append("Rate-card spread terms are incomplete.")
         else:
-            return None
-    return money((opportunity.current_value - deduction) * opportunity.fx_rate)
+            unresolved.append("Partner terms are still to be agreed.")
+    settings = db.scalar(scoped(db, CommercialSetting, opportunity))
+    ceiling = settings.partner_share_warning_pct if settings else Decimal("40")
+    if total_share > ceiling:
+        unresolved.append(f"Partner share {total_share}% exceeds the configured {ceiling}% warning ceiling.")
+    net_local = money(opportunity.current_value - deduction)
+    if net_local < 0:
+        unresolved.append("Partner deductions exceed the opportunity value.")
+    calculable = not any(message for message in unresolved if "exceeds the configured" not in message)
+    return {
+        "gross_local": money(opportunity.current_value),
+        "deduction_local": money(deduction),
+        "net_local": net_local if calculable else None,
+        "net_usd": money(net_local * opportunity.fx_rate) if calculable else None,
+        "total_partner_share_pct": total_share.quantize(Decimal("0.01")),
+        "warning_ceiling_pct": ceiling,
+        "warnings": unresolved,
+        "calculable": calculable,
+    }
+
+
+def net_usd(db: Session, opportunity: Opportunity) -> Decimal | None:
+    return commercial_totals(db, opportunity)["net_usd"]
 
 
 def flags(pursuit: Pursuit) -> list[str]:

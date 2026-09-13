@@ -13,6 +13,8 @@ x-app: &app
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run bootstrap first}
     DEMO_PASSWORD: ${DEMO_PASSWORD:?Run bootstrap first}
     REDIS_URL: redis://redis:6379/0
+    FX_RATES_URL: ${FX_RATES_URL:-}
+    FX_RATE_SOURCE: ${FX_RATE_SOURCE:-Configured published source}
     CSRF_TRUSTED_ORIGINS: http://localhost:${PORT:-8082},http://127.0.0.1:${PORT:-8082}
   init: true
   restart: unless-stopped

@@ -18,13 +18,13 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-35–36 | Pipeline and stage changes | Implemented | drag-and-drop cards and accessible selector in App.tsx; evidence, locking, version conflicts and audit history in api.py |
 | FR-37–44 | Actions, blockers, engagement, scope, contacts, values, hold and milestones | Partial | atomic action completion/handoff, immutable history, automatic timestamps, seven milestones, stakeholder editing and primary-contact protection implemented; remaining specialized fields/configurable calendars pending |
 | FR-45–46 | Filters and opportunity page | Partial | paginated primary filters and core page implemented; specialized filters and partner/document modules pending |
-| FR-47 | Probability override | Implemented | FastAPI opportunity action route and detail UI |
-| FR-48–50 | Won/lost/approval capture | Partial | stage evidence validation exists; complete capture and approval-recorded editor pending |
+| FR-47 | Probability override | Implemented | override retains comment and stored stage-default snapshot |
+| FR-48–50 | Won/lost/approval capture | Implemented | complete loss context/competitor fields and won contract, project, evidence, optional approval and handoff capture |
 | FR-51 | Saved views | Implemented | personal saved-view API and RecordList UI |
-| FR-55–57 | Deployment currency and fixed stored values | Partial | US currency enforcement and stored amounts; local/USD display toggle pending |
-| FR-58–60 | Rate changes/refresh/bulk re-baseline | Planned | — |
-| FR-65–68 | Partner terms/net value/warnings/report | Partial | base model and supported deduction calculation only |
-| FR-69 | Partner performance | Planned | — |
+| FR-55–57 | Deployment currency and fixed stored values | Implemented | US currency enforcement, stored local/USD values and International display toggle |
+| FR-58–60 | Rate changes/refresh/bulk re-baseline | Implemented | individual fixed-rate history, admin table override, confirmed selected-open-deal re-baseline, monthly published-source adapter and failure/movement alerts; connected source configuration remains an environment acceptance item |
+| FR-65–68 | Partner terms/net value/warnings/report | Implemented | multi-partner UI/API, conditional terms validation, reproducible net calculation, configurable ceiling and undocumented-terms report |
+| FR-69 | Partner performance | Implemented | management report for introduced/involved opportunities, win rate and net won value |
 | FR-75–80 | Pre-sales queue/request lifecycle/approval/effort | Partial | initial creation/status/assignee/effort; complete approvals and weekly load pending |
 | FR-81 | Pre-sales cost | Planned | — |
 | FR-85 | Artifact attachments | Partial | secure document links only |

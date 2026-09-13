@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     database_url_override: str | None = Field(None, alias="DATABASE_URL")
     redis_url: str = Field("redis://redis:6379/0", alias="REDIS_URL")
     demo_password: str | None = Field(None, alias="DEMO_PASSWORD")
+    fx_rates_url: str | None = Field(None, alias="FX_RATES_URL")
+    fx_rate_source: str = Field("Configured published source", alias="FX_RATE_SOURCE")
     session_hours: int = 12
 
     @field_validator("instance_type")

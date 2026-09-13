@@ -1,22 +1,18 @@
-# ATPLCRM v0.7 verification
+# ATPLCRM v0.8 verification
 
 Verified locally on 13 September 2026.
 
 | Check | Result |
 |---|---|
-| FastAPI workflow, administration, data-tools, productivity, pipeline and notification suite | 31 passed |
-| React formatting | Passed |
+| Commercial API workflow tests | 2 passed: partner deductions/net value and report; USD rate guard and probability snapshot |
 | TypeScript and Vite production build | Passed, 1,582 modules transformed |
-| Isolated Chrome acceptance suite | 9 passed |
-| Isolated Work/Attention/notification acceptance journey | 1 passed |
-| International Chrome acceptance | Focused Work/Attention/notification journey passed against the persistent deployment |
-| US deployment acceptance | Health, application version, migration and service checks passed |
-| Health and API version | HTTP 200 and `0.7.0` in isolated, International and US deployments |
-| PostgreSQL migration | `0006_notifications` in isolated, International and US databases |
-| Immutable database history guards | Audit events, value history and completed actions protected in both PostgreSQL instances |
-| Tenant/currency isolation | International: AED, BHD, EUR, GBP, INR, SAR, USD; US: USD only |
-| Runtime services | API, database, Redis, scheduler, web and worker running in both instances |
+| Commercial workspace browser check | Passed: authenticated pipeline detail opened, Commercial tab rendered, partner action available |
+| International deployment | Healthy; API `0.8.0`; migration `0007_commercial` |
+| US deployment | Healthy; API `0.8.0`; migration `0007_commercial` |
+| Background worker | Registered monthly FX refresh, 15-minute exception scan and Monday summary tasks |
+| Fresh database migration | Disposable PostgreSQL database upgraded from empty through `0007_commercial` and was removed |
+| Python source | Commercial API, models, schemas, tasks and migration compiled successfully |
 
-Browser coverage includes all established workflows plus notification preferences, administrator exception scans, automation status, complete My Work sections, Needs Attention exceptions and the durable notification inbox. The API suite additionally verifies preference isolation, recipient routing, durable delivery history, read timestamps, automation runs, weekly-summary deduplication and the complete work-queue contract.
+The v0.8 focused checks cover the new financial invariants without repeating the whole established suite. The prior v0.7 baseline recorded 31 API tests, a 9-test isolated Chrome suite, Work/Attention notification acceptance, both local deployments and immutable audit/value/action history guards.
 
-Before this upgrade, PostgreSQL dumps for both persistent deployments were stored in the ignored `backups/` directory. Post-deployment checks confirmed both six-service stacks are running, the scheduler is active, and the worker registered the exception-scan and weekly-summary tasks.
+The monthly rate adapter is implemented and fails visibly when `FX_RATES_URL` is absent. Connected acceptance remains pending until the business selects and approves a published source whose JSON endpoint supplies `effective_date` and `rates_to_usd`.

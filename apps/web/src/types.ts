@@ -97,6 +97,7 @@ export interface Pursuit {
     email: string;
   }[];
   values_visible: boolean;
+  can_edit_commercial?: boolean;
   status?: string;
   area_of_interest?: string;
   outcome?: string;
@@ -113,20 +114,58 @@ export interface Pursuit {
   probability?: number;
   probability_note?: string;
   stage_probability?: number;
+  gross_margin_pct?: string | null;
   restricted?: boolean;
   current_value?: string;
   currency?: string;
   fx_rate?: string;
   value_usd?: string;
   net_value_usd?: string | null;
+  net_value_local?: string | null;
+  partner_deduction_local?: string;
+  total_partner_share_pct?: string;
+  partner_share_warning_pct?: string;
+  commercial_warnings?: string[];
+  partners?: Partner[];
+  approval_recorded?: boolean;
+  approval_note?: string;
+  loss_reason?: string;
+  competitor_name?: string;
+  competitor_status?: string;
+  contract_number?: string;
+  contract_date?: string | null;
+  project_start?: string | null;
+  duration_months?: number | null;
+  handoff_notes?: string;
+  close_notes?: string;
+  final_evidence_artifact_id?: string | null;
   values?: {
     id: string;
     type: string;
     amount: string;
     currency: string;
+    fx_rate: string;
+    usd_amount: string;
     date: string;
     note: string;
   }[];
+}
+export interface Partner {
+  id: string;
+  company_id: string;
+  company: string;
+  contact_id: string;
+  contact: string;
+  role: string;
+  introduced: boolean;
+  fee_basis: string;
+  share_pct: string;
+  fixed_fee: string;
+  applies_to: string;
+  duration_months: number | null;
+  status: string;
+  agreement_artifact_id: string | null;
+  terms_notes: string;
 }
 export interface Activity {
   id: string;
@@ -166,6 +205,10 @@ export interface Data {
   users: Person[];
   admin_users: Person[];
   admin_references: AdminReference[];
+  commercial_settings: {
+    partner_share_warning_pct: string;
+    fx_movement_notice_pct: string;
+  };
   companies: Company[];
   contacts: Contact[];
   leads: Pursuit[];
@@ -198,6 +241,7 @@ export interface Data {
       currency: string;
       rate: string;
       source: string;
+      effective_date: string | null;
     }[];
   };
 }
@@ -275,6 +319,28 @@ export interface WorkQueues {
     pursuit: Pursuit | null;
     request: Request | null;
   }[];
+}
+
+export interface UndocumentedPartnerReport {
+  partner_id: string;
+  opportunity_id: string;
+  opportunity: string;
+  stage: string;
+  partner: string;
+  contact: string;
+  status: string;
+  fee_basis: string;
+}
+
+export interface PartnerPerformanceReport {
+  company_id: string;
+  partner: string;
+  opportunities_involved: number;
+  opportunities_introduced: number;
+  wins: number;
+  closed: number;
+  win_rate_pct: string | null;
+  net_value_usd: string;
 }
 
 export interface AutomationStatus {

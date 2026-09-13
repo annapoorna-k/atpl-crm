@@ -55,6 +55,9 @@ import type {
   NotificationPreference,
   WorkQueues,
   AutomationStatus,
+  Partner,
+  PartnerPerformanceReport,
+  UndocumentedPartnerReport,
 } from "./types";
 
 const money = (
@@ -411,6 +414,7 @@ export default function App() {
     [mobile, setMobile] = useState(false),
     [ownerFilter, setOwnerFilter] = useState("all"),
     [pipelineView, setPipelineView] = useState("board"),
+    [showLocalCurrency, setShowLocalCurrency] = useState(false),
     [draggedPursuit, setDraggedPursuit] = useState<Pursuit | null>(null),
     [milestoneReport, setMilestoneReport] = useState<MilestoneReport[]>([]),
     [workQueues, setWorkQueues] = useState<WorkQueues | null>(null),
@@ -418,7 +422,13 @@ export default function App() {
       useState<NotificationPreference | null>(null),
     [automationStatus, setAutomationStatus] = useState<AutomationStatus | null>(
       null,
-    );
+    ),
+    [partnerPerformance, setPartnerPerformance] = useState<
+      PartnerPerformanceReport[]
+    >([]),
+    [undocumentedPartners, setUndocumentedPartners] = useState<
+      UndocumentedPartnerReport[]
+    >([]);
   const detailRef = useRef<HTMLDialogElement>(null);
   async function load() {
     try {
@@ -437,6 +447,27 @@ export default function App() {
   useEffect(() => {
     if (session) void load();
   }, [session]);
+  useEffect(() => {
+    if (
+      !session ||
+      page !== "reports" ||
+      !["Administrator", "Manager", "Executive"].includes(session.level)
+    )
+      return;
+    void Promise.all([
+      api<PartnerPerformanceReport[]>(
+        "commercial/reports/partner-performance/",
+      ),
+      api<UndocumentedPartnerReport[]>(
+        "commercial/reports/undocumented-partners/",
+      ),
+    ])
+      .then(([performance, undocumented]) => {
+        setPartnerPerformance(performance);
+        setUndocumentedPartners(undocumented);
+      })
+      .catch((e) => setToast((e as Error).message));
+  }, [session, page, data]);
   useEffect(() => {
     const handler = () => {
       setPage(location.hash.slice(1) || "overview");
@@ -1018,6 +1049,22 @@ export default function App() {
           options: options(d.reference.loss_reasons),
         }),
         field("competitor_name", "Competitor", { required: false }),
+        field("competitor_status", "Competitor status", {
+          options: options([
+            "None known",
+            "Incumbent",
+            "Shortlisted alongside us",
+            "Sole alternative",
+          ]),
+          value: "None known",
+        }),
+        field("close_notes", "Loss context and learning", {
+          type: "textarea",
+        }),
+        field("revisit_date", "Optional revisit date", {
+          type: "date",
+          required: false,
+        }),
       );
     if (target === "won")
       fields.push(
@@ -1029,6 +1076,45 @@ export default function App() {
         field("final_value", "Final contract value", {
           type: "number",
           value: r.current_value,
+        }),
+        field("project_start", "Expected project start", {
+          type: "date",
+          value: tomorrow(),
+        }),
+        field("duration_months", "Expected duration (months)", {
+          type: "number",
+          value: "1",
+        }),
+        field("final_evidence_artifact_id", "Final contract evidence", {
+          options: (timeline?.artifacts ?? [])
+            .filter((artifact) =>
+              ["Contract", "Purchase order", "SOW"].includes(artifact.type),
+            )
+            .map((artifact) => [
+              artifact.id,
+              `${artifact.title} · ${artifact.type}`,
+            ]),
+          hint: "Register a Contract, Purchase order or SOW in Documents first.",
+        }),
+        field("approval_recorded", "Commercial approval", {
+          options: [
+            ["false", "Not recorded"],
+            ["true", "Recorded outside ATPLCRM"],
+          ],
+          value: String(r.approval_recorded ?? false),
+        }),
+        field("approval_note", "Approval evidence note", {
+          type: "textarea",
+          required: false,
+          value: r.approval_note,
+        }),
+        field("handoff_notes", "Delivery handoff notes", {
+          type: "textarea",
+          required: false,
+        }),
+        field("close_notes", "Close notes", {
+          type: "textarea",
+          required: false,
         }),
       );
     setForm({
@@ -1207,6 +1293,225 @@ export default function App() {
         }),
       ],
       submit: (v) => api(`opportunities/${r.opportunity_id}/value/`, "POST", v),
+    });
+  }
+  function opportunityRateForm(r: Pursuit) {
+    setForm({
+      title: `Update ${r.currency} exchange rate`,
+      description:
+        "This changes only this opportunity. The previous rate remains in value and audit history.",
+      fields: [
+        field("rate", `1 ${r.currency} in USD`, {
+          type: "number",
+          value: r.fx_rate,
+        }),
+        field("reason", "Reason for changing this opportunity", {
+          type: "textarea",
+        }),
+      ],
+      submit: (v) => api(`opportunities/${r.opportunity_id}/rate/`, "POST", v),
+      label: "Update stored rate",
+    });
+  }
+  function commercialDetailsForm(r: Pursuit) {
+    setForm({
+      title: "Commercial assumptions and approval",
+      description:
+        "Gross margin is required only for partner terms based on gross margin. Approval is recorded as evidence and does not gate stage movement.",
+      fields: [
+        field("gross_margin_pct", "Expected gross margin (%)", {
+          type: "number",
+          value: r.gross_margin_pct ?? "",
+          required: false,
+        }),
+        field("approval_recorded", "Commercial approval", {
+          options: [
+            ["false", "Not recorded"],
+            ["true", "Recorded outside ATPLCRM"],
+          ],
+          value: String(r.approval_recorded ?? false),
+        }),
+        field("approval_note", "Approval note or linked-email reference", {
+          type: "textarea",
+          required: false,
+          value: r.approval_note,
+        }),
+      ],
+      submit: (v) =>
+        api(`opportunities/${r.opportunity_id}/commercial/`, "PATCH", {
+          ...v,
+          gross_margin_pct: v.gross_margin_pct || null,
+        }),
+    });
+  }
+  function partnerForm(r: Pursuit, partner?: Partner) {
+    const partnerCompanies = d.companies.filter((company) =>
+      [
+        "Referral partner",
+        "Reseller",
+        "Local partner",
+        "Prime contractor",
+        "Subcontractor",
+      ].includes(company.company_type),
+    );
+    setForm({
+      title: partner ? `Edit ${partner.company}` : "Add partner involvement",
+      description:
+        "Percentages always mean the share the partner takes. Fixed fees are entered in the opportunity currency.",
+      fields: [
+        field("company_id", "Partner company", {
+          options: partnerCompanies.map((company) => [
+            company.id,
+            company.name,
+          ]),
+          value: partner?.company_id,
+        }),
+        field("contact_id", "Partner contact", {
+          options: d.contacts
+            .filter((contact) =>
+              partnerCompanies.some(
+                (company) => company.id === contact.company_id,
+              ),
+            )
+            .map((contact) => [
+              contact.id,
+              `${contact.name} · ${contact.company}`,
+            ]),
+          value: partner?.contact_id,
+          hint: "The selected contact must belong to the selected partner company.",
+        }),
+        field("role", "Partner role", {
+          options: options([
+            "Referral source",
+            "Reseller",
+            "Local partner",
+            "Prime contractor",
+            "Delivery subcontractor",
+            "Introducer",
+            "Joint bid partner",
+          ]),
+          value: partner?.role ?? "Referral source",
+        }),
+        field("introduced", "Introduced this opportunity", {
+          options: [
+            ["false", "No"],
+            ["true", "Yes"],
+          ],
+          value: String(partner?.introduced ?? false),
+        }),
+        field("fee_basis", "Fee basis", {
+          options: options([
+            "Percentage of contract value",
+            "Percentage of gross margin",
+            "Fixed fee",
+            "Commission",
+            "Rate card spread",
+            "To be agreed",
+          ]),
+          value: partner?.fee_basis ?? "To be agreed",
+        }),
+        field("share_pct", "Partner share taken (%)", {
+          type: "number",
+          value: partner?.share_pct ?? "0",
+        }),
+        field("fixed_fee", `Fixed fee / spread (${r.currency})`, {
+          type: "number",
+          value: partner?.fixed_fee ?? "0",
+        }),
+        field("applies_to", "Terms apply to", {
+          options: options([
+            "This contract only",
+            "All revenue from this client for a fixed period",
+            "All revenue from this client indefinitely",
+          ]),
+          value: partner?.applies_to ?? "This contract only",
+        }),
+        field("duration_months", "Duration in months", {
+          type: "number",
+          required: false,
+          value: partner?.duration_months?.toString() ?? "",
+        }),
+        field("status", "Agreement status", {
+          options: options([
+            "Proposed",
+            "Verbally agreed",
+            "Documented in writing",
+            "Lapsed or superseded",
+          ]),
+          value: partner?.status ?? "Proposed",
+        }),
+        field("agreement_artifact_id", "Agreement evidence", {
+          required: false,
+          options: [
+            ["", "No linked evidence"],
+            ...(timeline?.artifacts ?? []).map(
+              (artifact) =>
+                [artifact.id, `${artifact.title} · v${artifact.version}`] as [
+                  string,
+                  string,
+                ],
+            ),
+          ],
+          value: partner?.agreement_artifact_id ?? "",
+        }),
+        field("terms_notes", "Terms notes", {
+          type: "textarea",
+          required: false,
+          value: partner?.terms_notes,
+        }),
+      ],
+      submit: (v) =>
+        api(
+          partner
+            ? `partners/${partner.id}/`
+            : `opportunities/${r.opportunity_id}/partners/`,
+          partner ? "PATCH" : "POST",
+          {
+            ...v,
+            duration_months: v.duration_months || null,
+            agreement_artifact_id: v.agreement_artifact_id || null,
+          },
+        ),
+      label: partner ? "Save partner terms" : "Add partner",
+    });
+  }
+  function commercialSettingsForm() {
+    setForm({
+      title: "Commercial warning thresholds",
+      fields: [
+        field("partner_share_warning_pct", "Partner share warning (%)", {
+          type: "number",
+          value: d.commercial_settings.partner_share_warning_pct,
+        }),
+        field("fx_movement_notice_pct", "FX movement notice (%)", {
+          type: "number",
+          value: d.commercial_settings.fx_movement_notice_pct,
+        }),
+      ],
+      submit: (v) => api("commercial/settings/", "PATCH", v),
+    });
+  }
+  function rebaselineOpenRates() {
+    const candidates = d.opportunities.filter(
+      (opportunity) =>
+        !["won", "lost"].includes(opportunity.stage ?? "") &&
+        opportunity.values_visible,
+    );
+    setForm({
+      title: "Re-baseline open opportunities",
+      description: `Apply current reference rates to ${candidates.length} visible open opportunities. Closed opportunities and restricted records you cannot see are excluded.`,
+      fields: [
+        field("confirmation", "Type REBASELINE to confirm", {
+          value: "",
+        }),
+        field("reason", "Reason", { type: "textarea" }),
+      ],
+      submit: (v) =>
+        api("commercial/rates/rebaseline/", "POST", {
+          ...v,
+          opportunity_ids: candidates.map((item) => item.opportunity_id),
+        }),
+      label: "Re-baseline selected set",
     });
   }
   function teamForm(r: Pursuit) {
@@ -1625,6 +1930,17 @@ export default function App() {
               </p>
             </div>
             <div className="heading-actions">
+              {d.instance !== "US" &&
+                ["pipeline", "reports"].includes(page) && (
+                  <button
+                    className="button secondary"
+                    onClick={() => setShowLocalCurrency((value) => !value)}
+                  >
+                    {showLocalCurrency
+                      ? "Show reporting USD"
+                      : "Show deal currencies"}
+                  </button>
+                )}
               {page === "overview" ? (
                 <>
                   <span className="today">
@@ -2186,8 +2502,12 @@ export default function App() {
                               <h3>{r.name}</h3>
                               {page === "pipeline" ? (
                                 <strong className="card-value">
-                                  {money(r.net_value_usd)}
-                                  <small>net USD</small>
+                                  {showLocalCurrency
+                                    ? money(r.net_value_local, r.currency)
+                                    : money(r.net_value_usd)}
+                                  <small>
+                                    net {showLocalCurrency ? r.currency : "USD"}
+                                  </small>
                                 </strong>
                               ) : (
                                 <Badge>{r.source_channel}</Badge>
@@ -2494,9 +2814,15 @@ export default function App() {
                     <thead>
                       <tr>
                         <th>OPPORTUNITY</th>
-                        <th>NET USD</th>
+                        <th>
+                          {showLocalCurrency ? "NET DEAL VALUE" : "NET USD"}
+                        </th>
                         <th>PROBABILITY</th>
-                        <th>WEIGHTED USD</th>
+                        <th>
+                          {showLocalCurrency
+                            ? "WEIGHTED DEAL VALUE"
+                            : "WEIGHTED USD"}
+                        </th>
                         <th>EXPECTED CLOSE</th>
                       </tr>
                     </thead>
@@ -2511,12 +2837,22 @@ export default function App() {
                               {r.name}
                             </button>
                           </td>
-                          <td>{money(r.net_value_usd)}</td>
+                          <td>
+                            {showLocalCurrency
+                              ? money(r.net_value_local, r.currency)
+                              : money(r.net_value_usd)}
+                          </td>
                           <td>{r.probability}%</td>
                           <td>
                             {money(
-                              (Number(r.net_value_usd) * (r.probability ?? 0)) /
+                              (Number(
+                                showLocalCurrency
+                                  ? r.net_value_local
+                                  : r.net_value_usd,
+                              ) *
+                                (r.probability ?? 0)) /
                                 100,
+                              showLocalCurrency ? r.currency : "USD",
                             )}
                           </td>
                           <td>{date(r.expected_close_date)}</td>
@@ -2526,6 +2862,94 @@ export default function App() {
                   </table>
                 </div>
               </section>
+              {["Administrator", "Manager", "Executive"].includes(
+                d.user.level,
+              ) && (
+                <div className="overview-bottom partner-reports">
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <div>
+                        <h2>Partner performance</h2>
+                        <p>
+                          Introduced and involved pursuits, wins and net won
+                          value.
+                        </p>
+                      </div>
+                      <Handshake size={18} />
+                    </div>
+                    {partnerPerformance.length ? (
+                      partnerPerformance.map((row) => (
+                        <div className="report-row" key={row.company_id}>
+                          <span>
+                            <strong>{row.partner}</strong>
+                            <small>
+                              {row.opportunities_introduced} introduced ·{" "}
+                              {row.opportunities_involved} involved
+                            </small>
+                          </span>
+                          <span>
+                            <strong>
+                              {row.win_rate_pct == null
+                                ? "No closed deals"
+                                : `${row.win_rate_pct}% win rate`}
+                            </strong>
+                            <small>{money(row.net_value_usd)} net won</small>
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <Empty
+                        title="No partner performance yet"
+                        text="Performance appears after partner involvements are recorded."
+                      />
+                    )}
+                  </section>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <div>
+                        <h2>Undocumented partner terms</h2>
+                        <p>
+                          Proposed or verbal terms at Proposal submitted or
+                          beyond.
+                        </p>
+                      </div>
+                      <Badge
+                        tone={undocumentedPartners.length ? "orange" : "green"}
+                      >
+                        {undocumentedPartners.length}
+                      </Badge>
+                    </div>
+                    {undocumentedPartners.length ? (
+                      undocumentedPartners.map((row) => (
+                        <button
+                          className="report-row report-row-button"
+                          key={row.partner_id}
+                          onClick={() => {
+                            const opportunity = d.opportunities.find(
+                              (item) =>
+                                item.opportunity_id === row.opportunity_id,
+                            );
+                            if (opportunity) openPursuit(opportunity);
+                          }}
+                        >
+                          <span>
+                            <strong>{row.opportunity}</strong>
+                            <small>
+                              {row.partner} · {row.contact}
+                            </small>
+                          </span>
+                          <Badge tone="orange">{row.status}</Badge>
+                        </button>
+                      ))
+                    ) : (
+                      <Empty
+                        title="Terms are documented"
+                        text="No advanced-stage pursuits have proposed or verbal partner terms."
+                      />
+                    )}
+                  </section>
+                </div>
+              )}
             </>
           )}
           {page === "settings" && (
@@ -2575,8 +2999,13 @@ export default function App() {
                 </section>
                 <section className="panel">
                   <div className="panel-heading">
-                    <h2>Currency reference</h2>
-                    <Badge>Demo rates</Badge>
+                    <div>
+                      <h2>Currency and commercial controls</h2>
+                      <p>Reference rates affect new opportunities only.</p>
+                    </div>
+                    <Badge>
+                      {d.instance === "US" ? "USD only" : "USD reporting base"}
+                    </Badge>
                   </div>
                   <div className="settings-note">
                     Rates are copied onto a deal at conversion. These seeded
@@ -2587,6 +3016,12 @@ export default function App() {
                       <strong>{r.currency}</strong>
                       <span>
                         1 {r.currency} = {Number(r.rate).toFixed(6)} USD
+                        <small>
+                          {r.effective_date
+                            ? `Effective ${date(r.effective_date)} · `
+                            : ""}
+                          {r.source}
+                        </small>
                       </span>
                       {d.user.level === "Administrator" && (
                         <button
@@ -2598,6 +3033,42 @@ export default function App() {
                       )}
                     </div>
                   ))}
+                  <div className="commercial-thresholds">
+                    <span>
+                      <small>PARTNER SHARE WARNING</small>
+                      <strong>
+                        {d.commercial_settings.partner_share_warning_pct}%
+                      </strong>
+                    </span>
+                    <span>
+                      <small>FX MOVEMENT NOTICE</small>
+                      <strong>
+                        {d.commercial_settings.fx_movement_notice_pct}%
+                      </strong>
+                    </span>
+                  </div>
+                  {d.user.level === "Administrator" && (
+                    <div className="detail-actions">
+                      <button
+                        className="button secondary"
+                        onClick={commercialSettingsForm}
+                      >
+                        Edit thresholds
+                      </button>
+                      <button
+                        className="button secondary"
+                        onClick={rebaselineOpenRates}
+                        disabled={
+                          !d.opportunities.some(
+                            (item) =>
+                              !["won", "lost"].includes(item.stage ?? ""),
+                          )
+                        }
+                      >
+                        Re-baseline open deals
+                      </button>
+                    </div>
+                  )}
                 </section>
               </div>
               <div className="overview-bottom notification-settings">
@@ -2932,11 +3403,15 @@ export default function App() {
                 </div>
                 <div>
                   <small>
-                    {p.opportunity_id ? "NET VALUE · USD" : "SOURCE"}
+                    {p.opportunity_id
+                      ? `NET VALUE · ${showLocalCurrency ? p.currency : "USD"}`
+                      : "SOURCE"}
                   </small>
                   <strong>
                     {p.opportunity_id
-                      ? money(p.net_value_usd)
+                      ? showLocalCurrency
+                        ? money(p.net_value_local, p.currency)
+                        : money(p.net_value_usd)
                       : p.source_channel}
                   </strong>
                   {p.opportunity_id && (
@@ -2978,7 +3453,7 @@ export default function App() {
                   "Timeline",
                   "Team & contacts",
                   "Documents",
-                  ...(p.opportunity_id ? ["Value history"] : []),
+                  ...(p.opportunity_id ? ["Commercial", "Value history"] : []),
                 ].map((tab) => (
                   <button
                     className={detailTab === tab ? "active" : ""}
@@ -3385,6 +3860,207 @@ export default function App() {
                     )}
                   </>
                 )}
+                {detailTab === "Commercial" && p.opportunity_id && (
+                  <>
+                    <div className="panel-heading">
+                      <div>
+                        <h3>Commercial position</h3>
+                        <p>
+                          Gross value, partner deductions and net forecast use
+                          the exchange rate stored on this opportunity.
+                        </p>
+                      </div>
+                      {d.instance !== "US" && p.values_visible && (
+                        <button
+                          className="button secondary"
+                          onClick={() =>
+                            setShowLocalCurrency((value) => !value)
+                          }
+                        >
+                          {showLocalCurrency
+                            ? "Show USD"
+                            : `Show ${p.currency}`}
+                        </button>
+                      )}
+                    </div>
+                    {p.values_visible ? (
+                      <div className="commercial-summary">
+                        <div>
+                          <small>GROSS VALUE</small>
+                          <strong>
+                            {showLocalCurrency
+                              ? money(p.current_value, p.currency)
+                              : money(p.value_usd)}
+                          </strong>
+                        </div>
+                        <div>
+                          <small>PARTNER DEDUCTIONS</small>
+                          <strong>
+                            {showLocalCurrency
+                              ? money(p.partner_deduction_local, p.currency)
+                              : money(
+                                  Number(p.partner_deduction_local ?? 0) *
+                                    Number(p.fx_rate ?? 1),
+                                )}
+                          </strong>
+                        </div>
+                        <div>
+                          <small>NET FORECAST VALUE</small>
+                          <strong>
+                            {showLocalCurrency
+                              ? money(p.net_value_local, p.currency)
+                              : money(p.net_value_usd)}
+                          </strong>
+                        </div>
+                        <div>
+                          <small>PARTNER SHARE</small>
+                          <strong>{p.total_partner_share_pct ?? "0"}%</strong>
+                          <span>
+                            Warning above {p.partner_share_warning_pct ?? "40"}%
+                          </span>
+                        </div>
+                        <div>
+                          <small>STORED FX RATE</small>
+                          <strong>{Number(p.fx_rate).toFixed(6)}</strong>
+                          <span>1 {p.currency} in USD</span>
+                        </div>
+                        <div>
+                          <small>PROBABILITY</small>
+                          <strong>{p.probability}%</strong>
+                          <span>
+                            Stage default {p.stage_probability}%
+                            {p.probability_note ? " · overridden" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="settings-note">
+                        Commercial values and partner terms are restricted for
+                        your role on this opportunity.
+                      </div>
+                    )}
+                    {p.commercial_warnings?.map((warning) => (
+                      <div className="commercial-warning" key={warning}>
+                        <AlertCircle size={18} />
+                        <span>{warning}</span>
+                      </div>
+                    ))}
+                    {p.can_edit_commercial && p.values_visible && (
+                      <div className="detail-actions commercial-actions">
+                        <button
+                          className="button secondary"
+                          onClick={() => commercialDetailsForm(p)}
+                        >
+                          Commercial assumptions
+                        </button>
+                        <button
+                          className="button secondary"
+                          onClick={() => opportunityRateForm(p)}
+                        >
+                          Update stored rate
+                        </button>
+                        <button
+                          className="button primary"
+                          onClick={() => partnerForm(p)}
+                        >
+                          <Plus size={14} /> Add partner
+                        </button>
+                      </div>
+                    )}
+                    <div className="panel-heading stakeholder-heading">
+                      <div>
+                        <h3>Partner involvement</h3>
+                        <p>
+                          {p.partners?.length ?? 0} partner
+                          {(p.partners?.length ?? 0) === 1 ? "" : "s"} linked
+                        </p>
+                      </div>
+                    </div>
+                    {p.partners?.length ? (
+                      p.partners.map((partner) => (
+                        <div className="partner-row" key={partner.id}>
+                          <Handshake size={22} />
+                          <span>
+                            <strong>{partner.company}</strong>
+                            <small>
+                              {partner.contact} · {partner.role}
+                            </small>
+                          </span>
+                          <span>
+                            <strong>
+                              {partner.fee_basis === "Fixed fee"
+                                ? money(partner.fixed_fee, p.currency)
+                                : partner.fee_basis === "To be agreed"
+                                  ? "Terms pending"
+                                  : `${partner.share_pct}% partner share`}
+                            </strong>
+                            <small>
+                              {partner.status} · {partner.applies_to}
+                            </small>
+                          </span>
+                          {p.can_edit_commercial && p.values_visible && (
+                            <span className="stakeholder-actions">
+                              <button
+                                className="text-button"
+                                onClick={() => partnerForm(p, partner)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="text-button danger"
+                                onClick={() =>
+                                  mutate(
+                                    `partners/${partner.id}/`,
+                                    undefined,
+                                    "DELETE",
+                                  )
+                                }
+                              >
+                                Remove
+                              </button>
+                            </span>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <Empty
+                        title="No partners linked"
+                        text="Add each commercial partner separately. Direct opportunities need no partner record."
+                      />
+                    )}
+                    <div className="detail-meta commercial-evidence">
+                      <div>
+                        <small>COMMERCIAL APPROVAL</small>
+                        <strong>
+                          {p.approval_recorded ? "Recorded" : "Not recorded"}
+                        </strong>
+                        <span>{p.approval_note || "Optional evidence"}</span>
+                      </div>
+                      <div>
+                        <small>GROSS MARGIN INPUT</small>
+                        <strong>
+                          {p.gross_margin_pct
+                            ? `${p.gross_margin_pct}%`
+                            : "Not required / not set"}
+                        </strong>
+                      </div>
+                      {p.stage === "won" && (
+                        <>
+                          <div>
+                            <small>CONTRACT / PO</small>
+                            <strong>{p.contract_number}</strong>
+                            <span>{date(p.contract_date)}</span>
+                          </div>
+                          <div>
+                            <small>PROJECT START</small>
+                            <strong>{date(p.project_start)}</strong>
+                            <span>{p.duration_months} months</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
                 {detailTab === "Value history" && (
                   <>
                     <div className="panel-heading">
@@ -3392,11 +4068,11 @@ export default function App() {
                         <h3>Every value, preserved</h3>
                         <p>
                           {p.values_visible
-                            ? `Currency: ${p.currency} · Fixed rate: ${p.fx_rate}`
+                            ? `Currency: ${p.currency} · Current stored rate: ${p.fx_rate}. Each row preserves the rate used at that time.`
                             : "Commercial values are restricted on this opportunity."}
                         </p>
                       </div>
-                      {p.can_work && p.values_visible && (
+                      {p.can_edit_commercial && p.values_visible && (
                         <button
                           className="button secondary"
                           onClick={() => recordValue(p)}
@@ -3411,7 +4087,8 @@ export default function App() {
                         <span>
                           <strong>{v.type}</strong>
                           <small>
-                            {date(v.date)} · {v.note || "No note added"}
+                            {date(v.date)} · FX {Number(v.fx_rate).toFixed(6)} ·{" "}
+                            {money(v.usd_amount)} · {v.note || "No note added"}
                           </small>
                         </span>
                         <strong>{money(v.amount, v.currency)}</strong>

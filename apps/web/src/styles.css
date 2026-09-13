@@ -3461,3 +3461,114 @@ td small {
     display: none;
   }
 }
+.commercial-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.commercial-summary > div,
+.commercial-thresholds > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f4f6f8;
+}
+.commercial-summary small,
+.commercial-thresholds small {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+.commercial-summary strong {
+  color: var(--navy);
+  font-size: 1.08rem;
+}
+.commercial-summary span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.commercial-warning {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 8px 0;
+  padding: 11px 13px;
+  border: 1px solid #f0c36a;
+  border-radius: 10px;
+  background: #fff8e6;
+  color: #704d08;
+  font-size: 0.84rem;
+  font-weight: 650;
+}
+.commercial-actions {
+  margin: 16px 0 22px;
+}
+.partner-row,
+.report-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(180px, 0.8fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+.partner-row > span,
+.report-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.partner-row small,
+.report-row small {
+  color: var(--muted);
+}
+.commercial-evidence {
+  margin-top: 22px;
+}
+.commercial-thresholds {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+.rate-row > span {
+  display: flex;
+  flex-direction: column;
+}
+.rate-row > span small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+.report-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+}
+.report-row-button {
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.report-row-button:hover {
+  background: #f4f6f8;
+}
+@media (max-width: 760px) {
+  .commercial-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+  .partner-row {
+    grid-template-columns: auto 1fr;
+  }
+  .partner-row > span:nth-of-type(2),
+  .partner-row .stakeholder-actions {
+    grid-column: 2;
+  }
+}

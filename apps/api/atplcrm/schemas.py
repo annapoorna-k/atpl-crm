@@ -116,9 +116,17 @@ class StageInput(Input):
     revisit_date: date | None = None
     loss_reason: str | None = None
     competitor_name: str = ""
+    competitor_status: Literal["None known", "Incumbent", "Shortlisted alongside us", "Sole alternative"] = "None known"
     contract_number: str | None = None
     contract_date: date | None = None
     final_value: Decimal | None = Field(None, ge=0)
+    project_start: date | None = None
+    duration_months: int | None = Field(None, ge=1, le=600)
+    handoff_notes: str = ""
+    close_notes: str = ""
+    final_evidence_artifact_id: UUID | None = None
+    approval_recorded: bool = False
+    approval_note: str = ""
 
 
 class ActionCompletionInput(Input):
@@ -167,6 +175,75 @@ class TeamInput(Input):
 class ProbabilityInput(Input):
     probability: int = Field(ge=0, le=100)
     reason: str = Field(min_length=1)
+
+
+class OpportunityRateInput(Input):
+    rate: Decimal = Field(gt=0, max_digits=18, decimal_places=8)
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class CommercialDetailsInput(Input):
+    gross_margin_pct: Decimal | None = Field(None, ge=0, le=100, max_digits=5, decimal_places=2)
+    approval_recorded: bool = False
+    approval_note: str = ""
+
+    @model_validator(mode="after")
+    def approval_has_evidence(self):
+        if self.approval_recorded and not self.approval_note:
+            raise ValueError("Add the approval note or linked-email reference.")
+        return self
+
+
+class PartnerInput(Input):
+    company_id: UUID
+    contact_id: UUID
+    role: Literal["Referral source", "Reseller", "Local partner", "Prime contractor", "Delivery subcontractor", "Introducer", "Joint bid partner"]
+    introduced: bool = False
+    fee_basis: Literal["Percentage of contract value", "Percentage of gross margin", "Fixed fee", "Commission", "Rate card spread", "To be agreed"]
+    share_pct: Decimal = Field(0, ge=0, le=100, max_digits=5, decimal_places=2)
+    fixed_fee: Decimal = Field(0, ge=0, max_digits=18, decimal_places=2)
+    applies_to: Literal["This contract only", "All revenue from this client for a fixed period", "All revenue from this client indefinitely"] = "This contract only"
+    duration_months: int | None = Field(None, ge=1, le=600)
+    status: Literal["Proposed", "Verbally agreed", "Documented in writing", "Lapsed or superseded"] = "Proposed"
+    agreement_artifact_id: UUID | None = None
+    terms_notes: str = ""
+
+    @model_validator(mode="after")
+    def valid_terms(self):
+        percentage = {"Percentage of contract value", "Percentage of gross margin", "Commission"}
+        if self.fee_basis in percentage and self.share_pct <= 0:
+            raise ValueError("Enter the percentage the partner takes.")
+        if self.fee_basis == "Fixed fee" and self.fixed_fee <= 0:
+            raise ValueError("Enter the fixed fee in the opportunity currency.")
+        if self.fee_basis == "Rate card spread" and self.share_pct <= 0 and self.fixed_fee <= 0:
+            raise ValueError("Enter the spread as a percentage or fixed amount.")
+        if self.applies_to == "All revenue from this client for a fixed period" and not self.duration_months:
+            raise ValueError("Enter the agreement duration in months.")
+        if self.status == "Documented in writing" and not self.agreement_artifact_id:
+            raise ValueError("Link the artifact that documents the partner terms.")
+        return self
+
+
+class CommercialSettingsInput(Input):
+    partner_share_warning_pct: Decimal = Field(ge=0, le=100, max_digits=5, decimal_places=2)
+    fx_movement_notice_pct: Decimal = Field(ge=0, le=100, max_digits=5, decimal_places=2)
+
+
+class RateRefreshItem(Input):
+    currency: str = Field(min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")
+    rate: Decimal = Field(gt=0, max_digits=18, decimal_places=8)
+
+
+class RateRefreshInput(Input):
+    source: str = Field(min_length=1, max_length=100)
+    effective_date: date
+    rates: list[RateRefreshItem] = Field(min_length=1, max_length=100)
+
+
+class RebaselineInput(Input):
+    opportunity_ids: list[UUID] = Field(min_length=1, max_length=500)
+    confirmation: Literal["REBASELINE"]
+    reason: str = Field(min_length=1, max_length=500)
 
 
 class ActivityInput(Input):

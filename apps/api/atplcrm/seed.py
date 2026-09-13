@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from pwdlib import PasswordHash
 from .constants import PROBABILITIES, REFERENCE_DEFAULTS, SERVICES, SOURCES
 from .database import engine
-from .models import Activity, Company, Contact, ExchangeRate, Lead, Opportunity, Pursuit, PursuitContact, TeamRole, Tenant, User, ValueHistory, WorkspaceReference
+from .models import Activity, CommercialSetting, Company, Contact, ExchangeRate, Lead, Opportunity, Pursuit, PursuitContact, TeamRole, Tenant, User, ValueHistory, WorkspaceReference
 from .services import stamp
 from .settings import get_settings
 
@@ -15,6 +15,8 @@ def ensure_references(db: Session, tenant: Tenant, actor: User) -> None:
     for category, options in REFERENCE_DEFAULTS.items():
         for order, (code, label, numeric_value) in enumerate(options):
             if (category, code) not in existing: db.add(WorkspaceReference(**stamp(actor), category=category, code=code, label=label, numeric_value=numeric_value, sort_order=order * 10))
+    if not db.scalar(select(CommercialSetting.id).where(CommercialSetting.tenant_id == tenant.id)):
+        db.add(CommercialSetting(**stamp(actor), partner_share_warning_pct=Decimal("40"), fx_movement_notice_pct=Decimal("5")))
 
 
 def seed() -> None:
@@ -54,7 +56,7 @@ def seed() -> None:
         db.add(pursuit); db.flush()
         lead = Lead(**stamp(maya), pursuit_id=pursuit.id, status="closed", outcome="Converted", area_of_interest="Predictive maintenance")
         db.add(lead); db.flush()
-        opportunity = Opportunity(**stamp(alex), pursuit_id=pursuit.id, origin_lead_id=lead.id, stage="proposal", customer_need="Reduce unplanned downtime", scope_summary="Focused pilot and phased rollout", primary_contact_id=contact.id, service_line=SERVICES[1], current_value=Decimal("185000"), currency="USD", fx_rate=Decimal("1"), value_usd=Decimal("185000"), expected_close_date=date.today() + timedelta(days=30), probability=PROBABILITIES["proposal"])
+        opportunity = Opportunity(**stamp(alex), pursuit_id=pursuit.id, origin_lead_id=lead.id, stage="proposal", customer_need="Reduce unplanned downtime", scope_summary="Focused pilot and phased rollout", primary_contact_id=contact.id, service_line=SERVICES[1], current_value=Decimal("185000"), currency="USD", fx_rate=Decimal("1"), value_usd=Decimal("185000"), expected_close_date=date.today() + timedelta(days=30), probability=PROBABILITIES["proposal"], probability_stage_default=PROBABILITIES["proposal"])
         db.add(opportunity); db.flush()
         db.add_all([ValueHistory(**stamp(alex), opportunity_id=opportunity.id, value_type="Initial estimate", amount=Decimal("185000"), currency="USD", fx_rate=Decimal("1")), PursuitContact(**stamp(maya), pursuit_id=pursuit.id, contact_id=contact.id, role="Champion"), TeamRole(**stamp(alex), pursuit_id=pursuit.id, user_id=james.id, role="Pre-sales owner"), TeamRole(**stamp(alex), pursuit_id=pursuit.id, user_id=omar.id, role="Tech lead"), Activity(**stamp(maya), pursuit_id=pursuit.id, company_id=company.id, contact_id=contact.id, activity_type="Meeting", subject="Discovery and priorities discussion", notes="Aligned on outcomes and next steps.")])
         lead_pursuit = Pursuit(**stamp(maya), name="AI readiness assessment", company_id=company.id, owner_id=maya.id, sourced_by_id=maya.id, holder_id=maya.id, source_channel="LinkedIn", next_action="Confirm the business need", action_type="Call", action_date=date.today() + timedelta(days=3))
