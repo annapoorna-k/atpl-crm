@@ -37,6 +37,8 @@ This is **v0.7, an initial working core**, using synthetic data and local passwo
 
 See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. The dashboard bootstrap API is intended for the seeded/early dataset; full activity pagination, analytics and scale benchmarks are still required.
 
+Before approving a local release, use the [manual end-to-end testing handbook](docs/ATPLCRM_MANUAL_E2E_TESTING.md). An editable Word copy with embedded UI screenshots is available at `docs/ATPLCRM_v0.7_Manual_E2E_Testing_Handbook.docx`.
+
 ## Verify
 
 ```sh

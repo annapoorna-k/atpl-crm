@@ -1,0 +1,945 @@
+# ATPLCRM v0.7 Manual End-to-End Testing Handbook
+
+**Document purpose:** manually validate every function implemented through ATPLCRM v0.7 before starting another feature.  
+**Audience:** business testers, administrators, sales users, pre-sales users and release reviewers.  
+**Execution date:** ____________________  **Tester:** ____________________  **Build/commit:** ____________________  
+**Environment:** ☐ International  ☐ US  **Result:** ☐ Pass  ☐ Pass with observations  ☐ Fail
+
+> Use synthetic data only. Run this handbook against a disposable local Docker environment because many scenarios create and change records. Record the actual result and evidence for every case; do not mark a case passed only because the control is visible.
+
+## 1. Product and workflow map
+
+![ATPLCRM login](manual-testing/screenshots/01-login.png)
+
+ATPLCRM v0.7 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
+
+```mermaid
+flowchart LR
+  A[Company and contact] --> B[Lead]
+  B --> C[Independent validation]
+  C --> D[Opportunity]
+  D --> E[Pre-sales and evidence]
+  E --> F[Proposal and negotiation]
+  F --> G[Won / Lost / Hold]
+  B -. actions, interactions, blockers .-> H[My Work and Needs Attention]
+  D -. scheduled exception scan .-> H
+  H --> I[Personal notifications and leadership summary]
+```
+
+Every pursuit has one commercial owner, one Ball in Court holder, one next action and due date, optional blockers, client interactions, team members, stakeholders, documents, a timeline and seven lifecycle milestones. A converted lead remains traceable and its pursuit context continues into the opportunity.
+
+## 2. Scope boundary
+
+This handbook tests what exists in **v0.7**. The following items are planned or partial and must not be reported as v0.7 defects merely because the complete future workflow is absent:
+
+| Area | Current v0.7 boundary |
+|---|---|
+| Identity | Local password sign-in only; Microsoft Entra/OIDC is planned. |
+| Authorization | Current owner/team/management rules are testable; a fine-grained policy editor is planned. |
+| Imports | CSV up to 5,000 rows; Excel, background jobs, fuzzy matching and field-by-field merge choice are planned. |
+| Documents | Secure HTTPS links only; file upload, Outlook/email linking, sharing register and version supersession are planned. |
+| Commercial | Stored currency/rate and value history work; rate refresh, re-baseline, full partner UI and complete close/handoff fields are pending. |
+| Pre-sales | Assignment, status, effort and approval-to-share gate work; contributor capacity, full review evidence and costing are pending. |
+| Reports | Current overview, pipeline, lead distribution, lifecycle report and forecast CSV work; historical funnels and advanced reports are pending. |
+| AI | No AI provider or simulated AI feature exists in v0.7. |
+| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.7. |
+
+If a current control fails inside these boundaries, record a defect. If a planned control is absent, record it as **Not in v0.7 scope**.
+
+## 3. Roles and seeded accounts
+
+All seeded accounts use the `DEMO_PASSWORD` value from the selected environment file. Never copy that value into this document or a defect report.
+
+| Account | Access level | Business role | Main acceptance responsibility |
+|---|---|---|---|
+| `maya@atplcrm.local` | Standard | Account Executive | Company/contact work, leads, owned/team pursuits, actions and interactions |
+| `omar@atplcrm.local` | Standard | Technical Lead | Assigned opportunity work and pre-sales deliverables |
+| `alex@atplcrm.local` | Manager | Head of Sales | Independent lead validation, pipeline control, bulk assignment, imports and commercial controls |
+| `james@atplcrm.local` | Manager | Head of Pre-Sales | Pre-sales assignment, approval and escalations |
+| `sarah@atplcrm.local` | Executive | Chief Executive | Management access, reporting, validation and restricted values |
+| `admin@atplcrm.local` | Administrator | Workspace Administrator | Users, references, rates and manual notification automation |
+
+### Role rule summary
+
+| Capability | Standard | Manager | Executive | Administrator |
+|---|:---:|:---:|:---:|:---:|
+| View tenant records and use personal views | ✓ | ✓ | ✓ | ✓ |
+| Create company, contact and lead | ✓ | ✓ | ✓ | ✓ |
+| Edit a company/contact owned by someone else | — | ✓ | ✓ | ✓ |
+| Change an assigned pursuit | Team/owner/holder | ✓ | ✓ | ✓ |
+| Independently validate, convert or disqualify a lead | — | ✓ | ✓ | —* |
+| Bulk assignment, CSV import and duplicate merge | — | ✓ | ✓ | ✓ |
+| Change value visibility or probability | — | ✓ | ✓ | —* |
+| Approve pre-sales work to share | — | ✓ | ✓ | ✓ |
+| Maintain users, reference data and rates | — | — | — | ✓ |
+| Run notification scan manually | — | — | — | ✓ |
+
+`*` Current domain routes for independent validation, value visibility and probability explicitly accept Manager or Executive. Test the Administrator account according to the actual control visibility; do not assume Administrator automatically has every commercial approval permission.
+
+## 4. Test environment preparation
+
+### ENV-01 — Create a disposable International manual-test deployment
+
+**Role:** Local operator  
+**Precondition:** Docker Desktop is running and port 8084 is free.
+
+1. Open Terminal and run:
+
+   ```sh
+   cd /Users/n22/Desktop/ATPLCRM
+   cp .env .env.manual
+   sed -i '' 's/^COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=atplcrm-manual/' .env.manual
+   sed -i '' 's/^PORT=.*/PORT=8084/' .env.manual
+   docker compose --env-file .env.manual up -d --build --wait
+   ```
+
+2. Run `docker compose --env-file .env.manual ps`.
+3. Open `http://localhost:8084/api/health/`.
+4. Open `http://localhost:8084`.
+
+**Expected:** database, Redis, API, worker, scheduler and web are running; the migrate service completed successfully; health returns `status: ok`; the branded login page loads.  
+**Actual/result:** ______________________________________________________________________
+
+### ENV-02 — Verify schema and application version
+
+1. Run `docker compose --env-file .env.manual exec -T api alembic current`.
+2. Run `docker compose --env-file .env.manual exec -T api python -c "from atplcrm.main import app; print(app.version)"`.
+
+**Expected:** migration is `0006_notifications (head)` and application version is `0.7.0`.  
+**Actual/result:** ______________________________________________________________________
+
+### ENV-03 — Verify persistence across restart
+
+1. Complete a harmless record creation case, such as creating a company.
+2. Run `docker compose --env-file .env.manual stop` and then `docker compose --env-file .env.manual start`.
+3. Sign in and search for the created record.
+
+**Expected:** the record remains because PostgreSQL uses a named volume.  
+**Actual/result:** ______________________________________________________________________
+
+### ENV-04 — Verify International and US isolation
+
+1. Create a uniquely named company in the manual International instance.
+2. Open the US deployment at `http://localhost:8083` in a private browser and sign in.
+3. Search for the unique company.
+4. Start a lead conversion in each deployment and inspect currency choices.
+
+**Expected:** the International record is absent from US; sessions do not cross between deployments; International offers configured currencies; US enforces USD and does not show a currency selector.  
+**Actual/result:** ______________________________________________________________________
+
+### ENV-05 — Record browser evidence
+
+For every failed case, capture the full page, the visible error, role/account, record name, time and case ID. Also save the API response from browser developer tools when the visible message is unclear. Never include passwords or session cookies.
+
+### ENV-06 — Preserve or remove the test environment
+
+- Preserve data for defect investigation: `docker compose --env-file .env.manual down`
+- Permanently delete disposable data only after evidence is accepted: `docker compose --env-file .env.manual down -v`
+
+## 5. Authentication, session and navigation
+
+### AUTH-01 — Valid sign-in for every role
+
+For each of the six accounts, enter the email and the password from `.env.manual`, select **Sign in**, and record the displayed name, title and access level.
+
+**Expected:** the Overview page opens; the profile shows the correct identity; no CSRF error appears.  
+**Actual/result:** ______________________________________________________________________
+
+### AUTH-02 — Invalid credentials
+
+Enter a valid email with an incorrect password, then an unknown email with any password.
+
+**Expected:** access is refused with a generic credential error; no user data or password detail is exposed.  
+**Actual/result:** ______________________________________________________________________
+
+### AUTH-03 — Sign out and protected navigation
+
+1. Sign in, select the header **Sign out** icon, and use the browser Back button.
+2. Directly request `http://localhost:8084/#pipeline`.
+
+**Expected:** the login form is shown and protected workspace data is unavailable.  
+**Actual/result:** ______________________________________________________________________
+
+### AUTH-04 — Disabled account
+
+1. As admin, create a temporary Standard user and sign in once in a private window.
+2. As admin, change the account status to **Inactive**.
+3. Retry sign-in and refresh the previously authenticated private window.
+
+**Expected:** active sessions are removed; the inactive account cannot enter the workspace.  
+**Actual/result:** ______________________________________________________________________
+
+### AUTH-05 — Password reset invalidates sessions
+
+1. Sign in as the temporary user in a private window.
+2. As admin, set a new password of at least 12 characters.
+3. Refresh the private window, try the old password, then try the new password.
+
+**Expected:** the old session and old password fail; the new password succeeds.  
+**Actual/result:** ______________________________________________________________________
+
+### AUTH-06 — CSRF recovery across browser tabs
+
+1. Open the login form in Tab A and enter valid credentials without submitting.
+2. Open the same login page in Tab B, wait for it to load, then close it.
+3. Submit Tab A.
+
+**Expected:** sign-in succeeds after the automatic one-time CSRF refresh; “CSRF validation failed” is not shown. Repeat around one authenticated save if desired.  
+**Actual/result:** ______________________________________________________________________
+
+### AUTH-07 — Session lifetime
+
+Confirm the configured inactivity timeout is 12 hours. For practical manual acceptance, remove the workspace session cookie in browser developer tools and perform an authenticated action.
+
+**Expected:** the user is returned to sign-in with an authentication/session message. A full 12-hour time-based soak may be recorded separately.  
+**Actual/result:** ______________________________________________________________________
+
+### NAV-01 — Main navigation and context header
+
+Select every navigation item: Overview, My work, Needs attention, Leads, Opportunities, Companies, Contacts, Pre-sales, Reports, Data tools and Administration.
+
+**Expected:** the correct title and content load without a full-page error; the header breadcrumb, instance label, profile, notifications and sign-out controls remain available.  
+**Actual/result:** ______________________________________________________________________
+
+### NAV-02 — Search this view
+
+On Leads and Opportunities, enter part of a record, company, owner or next action in **Search this view**, clear it, and repeat with a non-matching term.
+
+**Expected:** visible board cards update immediately; clearing restores records; no-match state is understandable.  
+**Actual/result:** ______________________________________________________________________
+
+### NAV-03 — Mobile navigation and layout
+
+At widths 390 × 844 and 768 × 1024, open the navigation drawer, visit Contacts and an opportunity detail, then close the drawer.
+
+**Expected:** no horizontal page overflow, controls remain reachable, tables can scroll inside their containers, and the backdrop/menu controls work by keyboard.  
+**Actual/result:** ______________________________________________________________________
+
+## 6. Overview, My Work, attention and notifications
+
+![Standard user overview](manual-testing/screenshots/02-standard-overview.png)
+
+### WORK-01 — Overview metrics and drill-through
+
+As Maya, compare active pipeline, weighted forecast, leads and needs-attention counts with their corresponding pages. Select each metric, **View pipeline**, **Open my work**, **View all**, and **View queue**.
+
+**Expected:** totals include only applicable visible records; restricted values do not leak into totals; every control opens the correct page. Recent interactions and pre-sales items show current records.  
+**Actual/result:** ______________________________________________________________________
+
+![My Work queues](manual-testing/screenshots/03-my-work.png)
+
+### WORK-02 — Personal action queues
+
+As each non-admin role, open **My work** and inspect Overdue actions, Due today and Upcoming actions.
+
+**Expected:** only pursuits where the signed-in user is Ball in Court appear in those three sections, divided by due date; each row opens the correct record.  
+**Actual/result:** ______________________________________________________________________
+
+### WORK-03 — Owned blockers and assigned deliverables
+
+Assign a blocker to Omar and a pre-sales request to Omar. Sign in as Omar and open My work.
+
+**Expected:** the blocker appears under **Blockers you own** and the open request under **Your deliverables**. Delivered or Cancelled requests do not appear.  
+**Actual/result:** ______________________________________________________________________
+
+### WORK-04 — Needs Attention exception coverage
+
+Prepare or identify records for each condition and open **Needs attention**:
+
+- overdue next action;
+- missing next action/action type;
+- Ball in Court held over 14 days;
+- blocker unresolved over 10 days;
+- no client interaction for 21 days;
+- expected close date passed;
+- lead awaiting validation over 5 working days;
+- overdue pre-sales deliverable.
+
+**Expected:** every condition is a separate issue with severity, explanation and correct drill-through. Correcting the underlying record removes the issue after refresh.  
+**Actual/result:** ______________________________________________________________________
+
+### WORK-05 — Set the next move
+
+As an assigned user, select **Update** on a pursuit. Change Ball in Court, full next action, action type, future due date, blocker, blocker owner, resolution action, next meeting and reason.
+
+**Expected:** all values persist; a handoff resets days-held; setting a blocker requires owner and resolution; clearing the blocker clears its owner/resolution; changing a next action or holder requires the complete action and a future date.  
+**Actual/result:** ______________________________________________________________________
+
+### WORK-06 — Complete action and create the next action atomically
+
+Open an assigned pursuit, select **Complete action**, enter outcome, note, new holder, new action/type and a future date.
+
+**Expected:** the current action is stored in Timeline as **Completed action**, the new action becomes current, and both changes appear together. A past/today next date is rejected without partially completing the old action.  
+**Actual/result:** ______________________________________________________________________
+
+### WORK-07 — Concurrent work update protection
+
+Open the same pursuit in two independent browser sessions. Save a work change in Session A, then submit a different change from Session B without refreshing.
+
+**Expected:** Session B receives a conflict telling the tester to refresh; Session A’s values remain intact.  
+**Actual/result:** ______________________________________________________________________
+
+![Durable notification inbox](manual-testing/screenshots/08-notifications.png)
+
+### NOTIF-01 — Personal inbox, drill-through and read state
+
+Open the bell panel. Open an unread pursuit notification, mark one item read, then select **Mark all read**.
+
+**Expected:** unread count decreases, read time is retained, the target record opens when present, and state remains after refresh/sign-out/sign-in.  
+**Actual/result:** ______________________________________________________________________
+
+### NOTIF-02 — Personal preferences
+
+Select **Preferences** from the inbox or **Manage preferences** in Administration. Enable/mute each category and update:
+
+- client inactivity: 7–120 days;
+- proposal follow-up: 1–60 days;
+- close notice: 1–60 days.
+
+**Expected:** settings persist only for the signed-in user; values outside the ranges are rejected; muted categories stop future deliveries but issues remain visible in My Work/Needs Attention.  
+**Actual/result:** ______________________________________________________________________
+
+### NOTIF-03 — Administrator manual scan and automation status
+
+As admin, select **Run exception scan**. Refresh Administration.
+
+**Expected:** a success message reports newly created notifications; status shows task name, result, count and completion time. Running again without changed source conditions creates no duplicates. Non-admin roles do not have this control and an unauthorized request is refused.  
+**Actual/result:** ______________________________________________________________________
+
+### NOTIF-04 — Scheduled task health
+
+Run:
+
+```sh
+docker compose --env-file .env.manual logs --tail=100 worker scheduler
+```
+
+**Expected:** worker is ready and registers `atplcrm.refresh_notifications` and `atplcrm.weekly_pipeline_summary`; scheduler is running. Exception scans are scheduled every 15 minutes and leadership summaries at 07:00 UTC each Monday.  
+**Actual/result:** ______________________________________________________________________
+
+### NOTIF-05 — Recipient and escalation rules
+
+Using aged synthetic records, run the scan and verify each rule:
+
+| Trigger | Expected recipient |
+|---|---|
+| Due today / overdue action | Ball in Court holder |
+| Missing next action | Ball in Court holder and commercial owner |
+| Ball in Court over 14 days | Holder and relevant function head |
+| Blocker over 10 days | Blocker owner and commercial owner |
+| Client inactivity threshold | Commercial owner |
+| Proposal without follow-up threshold | Commercial owner and Head of Sales |
+| Validation over 5 working days | Head of Sales |
+| Pre-sales due within 2 days or overdue | Assignee and Head of Pre-Sales |
+| Close approaching/passed | Commercial owner |
+| Lead nurture/opportunity hold revisit reached | Record owner |
+| Automation failure | Administrators who enabled system failures |
+| Weekly summary | Manager and Executive users who enabled weekly summary |
+
+**Expected:** delivery follows the table, severity is high for overdue/critical items, and the same source event is deduplicated.  
+**Actual/result:** ______________________________________________________________________
+
+## 7. Companies, contacts and activities
+
+### REL-01 — Create a company
+
+As Maya, select Companies → **Create company** and enter a unique name, domain, type, industry, country, owner, global account and region.
+
+**Expected:** the company appears in the list and detail; the creator is recorded; a duplicate name is rejected with guidance to use the existing company.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-02 — Edit company ownership rule
+
+As Maya, edit her company. Create a company owned by Omar and try to edit it as Maya, then as Alex.
+
+**Expected:** owner edits succeed; unrelated Standard user is refused; Manager succeeds. Changes appear in the company detail.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-03 — Company detail
+
+Open a company and verify Contacts, All pursuits and Company interactions. Open a contact and pursuit from the detail.
+
+**Expected:** only records belonging to the company appear and navigation opens the selected record.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-04 — Create and edit a contact
+
+Create a contact with company, name, title, email, phone, country, owner, source, consent basis and outbound-contact choice. Edit the same contact.
+
+**Expected:** values persist, company association is correct, and duplicate email is rejected. Owner/management edit rules match REL-02.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-05 — Contact detail and engagement counters
+
+Open a contact and compare email, owner, source, outbound touches, associated pursuits and interaction history. Log an outbound activity and refresh.
+
+**Expected:** completed outbound client-facing activity increases touch count and appears in history; linked pursuits are accurate.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-06 — Log client interaction
+
+From a pursuit or contact, select **Log interaction**. Test Call, Email, Meeting and Internal note, inbound/outbound, outcomes and optional notes.
+
+**Expected:** client-facing activity requires a contact; company/contact/pursuit must match; future activity time is rejected; client-facing activity updates last-client-interaction; Internal note does not.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-07 — Do-not-contact control
+
+Mark a contact **Do not contact**. Try an outbound client interaction without and then with an override reason.
+
+**Expected:** the first save is blocked; a recorded reason allows the second; inbound and Internal note behavior remains appropriate.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-08 — Contact collision notification
+
+As Maya, log outbound contact against a contact owned by Omar.
+
+**Expected:** Maya sees a warning naming the owner; Omar receives a durable notification.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-09 — Company/contact lists
+
+For both lists, test free-text search, owner, country, sort direction, next/previous page and row opening.
+
+**Expected:** results are server-paginated and match every active filter; totals/pages update; controls do not lose state unexpectedly.  
+**Actual/result:** ______________________________________________________________________
+
+### REL-10 — Personal saved views
+
+Save a filtered Company view and Contact view, apply each, sign out/in, then delete it. Try the same name twice for one entity and use the same name for another entity.
+
+**Expected:** views are private to the current user, persist across sessions, restore filters and can be deleted; duplicate name is rejected only within the same user/entity.  
+**Actual/result:** ______________________________________________________________________
+
+## 8. Lead lifecycle and independent validation
+
+### LEAD-01 — Create a lead
+
+As Maya, select **New lead** and enter a unique lead name, company, commercial owner, Ball in Court holder, source/detail, area of interest, action/type and future due date.
+
+**Expected:** the lead appears only on the Lead board/list in New status; source, owner, holder and next action match the form; today/past due date is rejected.  
+**Actual/result:** ______________________________________________________________________
+
+### LEAD-02 — Lead board, list, filters and saved view
+
+Test Board/List, owner filter, text search, list status, priority, country, sort, pagination and a saved view.
+
+**Expected:** counts and results agree; opening a result shows the same record; the saved view is personal and persistent.  
+**Actual/result:** ______________________________________________________________________
+
+### LEAD-03 — Status progression
+
+As an assigned user, move New → Working → Engaged → Ready for validation using the detail status selector.
+
+**Expected:** status persists and each change appears in Timeline; entering Ready records the Ready for validation milestone.  
+**Actual/result:** ______________________________________________________________________
+
+### LEAD-04 — Nurture
+
+Select **Nurture**, choose a future revisit date, and save.
+
+**Expected:** the lead closes with Nurture outcome and revisit date; the date eventually produces an owner notification when reached; a non-future date is rejected.  
+**Actual/result:** ______________________________________________________________________
+
+### LEAD-05 — Independent disqualification
+
+Create a lead sourced/owned by Maya and make it Ready. Try disqualification as Maya, as Alex when Alex is made owner, and as an independent Manager/Executive.
+
+**Expected:** Standard/self-review attempts are refused; independent Manager/Executive can choose a configured reason; lead closes as Disqualified and remains traceable.  
+**Actual/result:** ______________________________________________________________________
+
+### LEAD-06 — Independent validation and conversion
+
+As independent Alex or Sarah, open a Ready lead and provide customer need, scope, primary contact from the same company, initial estimate, currency where applicable, service line and expected signature date.
+
+**Expected:** conversion succeeds once; the original lead closes as Converted; a Discovery opportunity appears; company, source, contacts, team, history and pursuit identity are preserved; initial value history is created using the stored rate.  
+**Actual/result:** ______________________________________________________________________
+
+### LEAD-07 — Conversion gates and idempotency
+
+Attempt conversion while the lead is not Ready, by a Standard user, by its owner/source Manager, with another company’s contact, invalid currency/service, or missing required data. Submit the same valid conversion twice.
+
+**Expected:** invalid attempts explain the gate and create no opportunity; repeated valid submission returns the same opportunity and never duplicates it.  
+**Actual/result:** ______________________________________________________________________
+
+### LEAD-08 — Converted lead protection
+
+Open the converted lead and try to change its status.
+
+**Expected:** the UI points work to the linked opportunity and does not reopen/change the converted lead.  
+**Actual/result:** ______________________________________________________________________
+
+## 9. Opportunity, action and lifecycle testing
+
+![Opportunity board](manual-testing/screenshots/04-opportunity-board.png)
+
+### OPP-01 — Board and list
+
+Test Board/List, owner filter, text search, status/stage, priority, country, sort, pagination, personal saved views and result opening.
+
+**Expected:** board columns use configured stage labels/probabilities; hold is excluded; visible net USD totals are correct; list behavior matches the Lead list.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-02 — Bulk assignment
+
+In List view, as Alex select one or multiple opportunities/leads, set a commercial owner and/or Ball in Court holder, enter a reason and apply. Repeat as Maya.
+
+**Expected:** Manager succeeds, row versions and audit history update, holder handoff resets held time, and Standard user cannot bulk assign. A stale selected record causes a conflict rather than overwriting.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-03 — Drag-and-drop stage movement
+
+As an assigned user, drag an opportunity to another valid stage and enter stage-change evidence.
+
+**Expected:** evidence is required, card moves only after save, configured probability applies, version increments and Timeline records old/new stage and reason. Cancelling leaves the card unchanged.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-04 — Accessible stage selector
+
+Open the opportunity and use **Opportunity stage** without drag-and-drop.
+
+**Expected:** it opens the same evidence workflow and produces the same result as OPP-03. Keyboard users can reach and operate the selector.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-05 — Team gate for advanced stages
+
+On an opportunity without both roles, attempt Pre-sales, Proposal, Negotiation, Contract and Won. Assign a Pre-sales owner and Tech lead, then retry.
+
+**Expected:** movement is blocked until both roles exist; after assignment it succeeds. Pre-sales assignment records its milestone once.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-06 — Hold and revisit
+
+Move an opportunity to Hold without a revisit date, with today’s date, and then with a future date.
+
+**Expected:** missing/non-future dates are rejected; valid hold stores the revisit and excludes the record from active forecast; a reached revisit creates an owner alert.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-07 — Close Lost
+
+Move to Lost with and without a configured loss reason; optionally record a competitor.
+
+**Expected:** loss reason is mandatory and must use an active configured value; valid save sets stage probability to 0, records Closed milestone and removes active-work alerts.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-08 — Close Won evidence gate
+
+1. Attempt Won with no final Contract, Purchase order or SOW link.
+2. Register the evidence link.
+3. Retry with contract/PO number, contract date and final value.
+
+**Expected:** first attempt is blocked; missing close fields are rejected; valid attempt sets Won/100%, records final value history and Closed milestone. A user without value access cannot close Won.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-09 — Stage concurrency
+
+Open the same opportunity in two independent sessions. Move it in Session A, then submit a different stage from Session B.
+
+**Expected:** Session B gets a refresh conflict and cannot overwrite Session A. No duplicate milestone is created.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-10 — Assign pursuit team
+
+As commercial owner/management, assign Pre-sales owner, Tech lead and multiple Supporting contributors. Repeat as an unrelated Standard user.
+
+**Expected:** authorized changes persist and appear under Team & contacts; unique functional roles are replaced rather than duplicated; unrelated Standard user is refused.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-11 — Stakeholders
+
+Add a contact from the opportunity company, change its relationship role, and remove it. Try another company’s contact and try to remove the active primary contact.
+
+**Expected:** valid add/edit/remove works and is audited; cross-company contact is unavailable/refused; primary contact cannot be removed.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-12 — Record commercial value
+
+As owner or management with value access, record Initial estimate, Proposal value, Revised proposal, Negotiated value and Final contract value with notes.
+
+**Expected:** current value and USD equivalent update; every entry remains in reverse-chronological Value history with original currency/fixed FX rate; invalid type/negative amount is refused.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-13 — Probability override
+
+As Manager/Executive, enter 0, 55 and 100 with reasons. Try as Standard.
+
+**Expected:** management values persist with reason; stage remains unchanged; next stage change restores configured stage probability; Standard user is refused.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-14 — Restricted commercial values
+
+As Manager/Executive, set restricted visibility with a reason. Inspect the record as management, an assigned team member and an unrelated Standard user.
+
+**Expected:** management/team retain allowed access; unrelated Standard user sees no commercial amount, value history, activity narrative, completed actions or internal evidence. Restricted values do not leak through overview, reports, search or API-driven lists. Restore visibility and verify it returns.  
+**Actual/result:** ______________________________________________________________________
+
+### OPP-15 — Timeline and immutable action history
+
+Complete actions, log interactions, move stages, assign roles, add stakeholders, record value and add evidence. Inspect Timeline.
+
+**Expected:** entries show author/date/type and correct details in descending order. Completed actions and audit/value history have no UI edit/delete control and remain after later changes.  
+**Actual/result:** ______________________________________________________________________
+
+![Seven milestone detail](manual-testing/screenshots/05-opportunity-milestones.png)
+
+### OPP-16 — Seven milestones
+
+Follow one record through lead creation, first outbound contact, Ready, validation, pre-sales assignment, Proposal and Won/Lost.
+
+**Expected:** exactly seven milestones appear in order—Lead created, First contacted, Ready for validation, Validated, Pre-sales assigned, Proposal sent and Closed. Each timestamp is set once and remains after backward stage movement.  
+**Actual/result:** ______________________________________________________________________
+
+## 10. Pre-sales and evidence
+
+### PRE-01 — Create request
+
+As management or assigned Pre-sales owner, create a request with opportunity, title, type, assignee, needed-by date, meeting date, estimate and notes. Try as unrelated Standard user.
+
+**Expected:** authorized request appears in the queue and assignee’s My Work; assignee is added as Supporting contributor; unrelated Standard user is refused.  
+**Actual/result:** ______________________________________________________________________
+
+### PRE-02 — Request queue
+
+Verify Open requests, Ready for review and Past due metrics; search using the page header and open a row.
+
+**Expected:** status/date metrics and visible rows agree; title, opportunity, assignee, status, needed-by and estimate are correct.  
+**Actual/result:** ______________________________________________________________________
+
+### PRE-03 — Status updates and ownership
+
+As assignee, move through Requested, Clarification required, Accepted, In progress, Ready for review, Blocked and Cancelled. Try updating another assignee’s request as Standard.
+
+**Expected:** assignee/management can update; unrelated Standard user is refused; Blocked requires a reason. Every change appears in the pursuit Timeline.  
+**Actual/result:** ______________________________________________________________________
+
+### PRE-04 — Approval and delivery gate
+
+As Standard assignee, attempt Approved to share and Delivered. As Manager, approve; then deliver with and without actual effort.
+
+**Expected:** management approval is required; Delivered is allowed only from Approved to share and requires actual days; delivered work leaves My Work.  
+**Actual/result:** ______________________________________________________________________
+
+### DOC-01 — Evidence link register
+
+As an assigned pursuit user, add an HTTPS document link with title, type, version and visibility.
+
+**Expected:** invalid URL is rejected; valid item appears in Documents and opens in a new tab; document type/version/visibility display correctly.  
+**Actual/result:** ______________________________________________________________________
+
+### DOC-02 — Internal evidence visibility
+
+Add one Pursuit document and one Internal team-only document. View as assigned and unrelated users.
+
+**Expected:** assigned users see both; unrelated users see only the pursuit document, subject to restricted-value behavior.  
+**Actual/result:** ______________________________________________________________________
+
+## 11. Search, imports, duplicates and data quality
+
+![Data tools](manual-testing/screenshots/06-data-tools.png)
+
+### DATA-01 — Universal search
+
+Search by company, contact, lead and opportunity text. Filter by record type and owner; test next/previous pages and clear filters.
+
+**Expected:** results are tenant-scoped, filters combine correctly, type/detail/route are accurate and selecting a result opens its destination. Restricted values are not exposed.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-02 — Download templates
+
+As Manager/Executive/Administrator, download Company, Contact and Lead CSV templates.
+
+**Expected:** each file downloads with documented headers and opens as CSV. Standard users cannot perform imports/merges.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-03 — Column mapping and dry-run validation
+
+Upload a CSV whose headings differ from the template. Map columns and select **Validate file**.
+
+**Expected:** mapping controls accept the source columns; preview reports total, valid and invalid rows without creating records.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-04 — Company CSV import
+
+Import valid and invalid company rows including missing name/country, unknown owner and duplicate company.
+
+**Expected:** valid rows import; invalid rows are skipped with row/field errors; no duplicate is silently created; completion totals match.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-05 — Contact CSV import
+
+Import rows with valid/unknown company, valid/invalid/duplicate email, owner and source.
+
+**Expected:** relationships resolve within the tenant; invalid rows are reported; valid rows preserve consent/contact fields supported by the importer.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-06 — Lead CSV import
+
+Import rows with company/owner/holder/source/action values and future/invalid due dates.
+
+**Expected:** valid leads create complete pursuits; invalid references/dates are rejected row by row; successful rows appear in Leads.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-07 — Partial import and error report
+
+Use a file containing both valid and invalid rows. Download the validation/error report and import valid rows.
+
+**Expected:** only valid rows are created; error download identifies original rows and reasons; imported/skipped totals are exact.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-08 — Import history and limits
+
+Refresh the Import center and inspect filename, entity, status, row counts and errors. Try an unsupported type/empty file and a file over 5,000 rows.
+
+**Expected:** completed imports remain in history; invalid format/size is rejected clearly; no partial data is created before confirmation.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-09 — Exact duplicate review and merge
+
+Create two companies with matching normalized domain/name or two contacts with matching email/phone as permitted by the fixture, open Possible duplicates, select a primary and merge.
+
+**Expected:** exact groups appear; Manager/Executive/Administrator can merge; linked contacts, pursuits, activities, primary-contact links and stakeholder links move safely; duplicate is archived and no longer appears. Same-record or cross-tenant IDs are rejected.  
+**Actual/result:** ______________________________________________________________________
+
+### DATA-10 — Data quality dashboard
+
+Create records missing domain, industry, email, phone or with overdue/missing action. Open Data quality.
+
+**Expected:** score, records checked, issue/duplicate totals and metrics reconcile; issue severity/reason are correct; selecting an issue opens the relevant area.  
+**Actual/result:** ______________________________________________________________________
+
+## 12. Reports and export
+
+### RPT-01 — Pipeline metrics
+
+Compare Net pipeline and Weighted pipeline against visible open opportunities. Include Won, Lost, Hold and a restricted opportunity.
+
+**Expected:** open visible net values are counted; weighted amount uses the current probability; Won/Lost/Hold are excluded; hidden values do not leak.  
+**Actual/result:** ______________________________________________________________________
+
+### RPT-02 — Pipeline by stage
+
+Compare every stage bar/count/value to the Opportunity board and select the stage.
+
+**Expected:** labels use current reference configuration; counts and visible values match; drill-through opens Opportunities.  
+**Actual/result:** ______________________________________________________________________
+
+### RPT-03 — Lead distribution
+
+Compare lead status counts to the Lead board and select a status.
+
+**Expected:** counts match the current status distribution and drill-through opens Leads. Treat it as a distribution, not historical conversion analysis.  
+**Actual/result:** ______________________________________________________________________
+
+### RPT-04 — Lifecycle bottleneck report
+
+For each of seven milestone tiles, verify record count, median working days, target and health indicator; select a tile.
+
+**Expected:** exactly seven tiles display; values reflect stored timestamps and weekday calculations; drill-through lists matching records.  
+**Actual/result:** ______________________________________________________________________
+
+### RPT-05 — Forecast detail
+
+Compare record, company, stage, owner, close, probability and net USD with opportunity details. Test value restrictions with different roles.
+
+**Expected:** data is consistent and restricted rows/values remain protected.  
+**Actual/result:** ______________________________________________________________________
+
+### RPT-06 — Forecast CSV export
+
+Select **Export CSV**, open the file in a text editor and spreadsheet, and compare rows/totals. Include a test record beginning with `=`, `+`, `-` or `@` if possible.
+
+**Expected:** visible forecast rows export; spreadsheet-formula prefixes are escaped; restricted data is absent; no HTML/error file is downloaded.  
+**Actual/result:** ______________________________________________________________________
+
+## 13. Administrator testing
+
+![Administration workspace](manual-testing/screenshots/07-administration.png)
+
+### ADMIN-01 — Administration visibility
+
+Open Administration as admin and each non-admin role.
+
+**Expected:** all users see their own profile, currency reference, notification preferences and integration-readiness information; only admin sees editable Workspace team, rates/reference controls and manual automation controls. Server authorization rejects direct non-admin admin requests.  
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-02 — Create user
+
+Create Standard, Manager, Executive and Administrator test users using unique emails and passwords of at least 12 characters.
+
+**Expected:** each active user appears with correct identity/title/level and can sign in. Duplicate email, invalid email and short password are rejected.  
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-03 — Edit user and access level
+
+Change name, email, title and access level, then sign in as that user.
+
+**Expected:** profile and permissions reflect the change. Email stays unique and normalized.  
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-04 — Account activation and password
+
+Repeat AUTH-04 and AUTH-05; reactivate the account and confirm only the current password works.
+
+**Expected:** activation and session invalidation are immediate and tenant-scoped.  
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-05 — Protect current administrator
+
+As admin, try to deactivate the signed-in account or remove its Administrator access.
+
+**Expected:** both changes are refused so the current administrator cannot lock itself out.  
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-06 — Add reference option
+
+Add options to Sources, Service lines, Action types, Blocker types, Loss reasons and Disqualification reasons. Try adding a duplicate code and a new workflow stage/status code.
+
+**Expected:** supported additions appear in corresponding forms after refresh; duplicate code is rejected; stage, lead-status and request-status codes cannot be added because their stable workflow codes are locked.  
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-07 — Edit reference option
+
+Edit label, sort order and availability; edit a stage probability. Deactivate an option and inspect new forms while opening old records that already use it.
+
+**Expected:** labels/order/probabilities update; inactive options cannot be selected for new changes while historical records remain understandable; stable code does not change. The default `None` blocker cannot be disabled and stage probability cannot be blank.  
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-08 — Exchange rates
+
+Update a non-USD rate and source, convert a new lead in that currency, then change the rate again.
+
+**Expected:** future conversion uses the latest rate; the existing opportunity/value history retains its original fixed rate. USD remains exactly 1 and cannot be changed. US deployment exposes USD only.  
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-09 — Integration readiness
+
+Inspect Microsoft identity, email/document integration and other readiness cards.
+
+**Expected:** planned integrations are described honestly and no unavailable integration can be enabled or mistaken for connected functionality.  
+**Actual/result:** ______________________________________________________________________
+
+## 14. Cross-role authorization and audit acceptance
+
+### SEC-01 — Assigned-team authorization
+
+Use one opportunity with Maya as owner, Alex as holder, James as Pre-sales owner and Omar as Tech lead. Try work updates as each and as an unrelated Standard user.
+
+**Expected:** owner, source, holder, explicit team and management can work according to current rules; unrelated Standard user can view tenant data but cannot change that pursuit.  
+**Actual/result:** ______________________________________________________________________
+
+### SEC-02 — Management-only operations
+
+As Standard, attempt independent conversion/disqualification, bulk assignment, import, merge, restricted-value change, probability override and pre-sales approval. Repeat with the appropriate Manager/Executive.
+
+**Expected:** Standard is refused and no data changes; the eligible management role succeeds when business gates are met.  
+**Actual/result:** ______________________________________________________________________
+
+### SEC-03 — Administrator-only operations
+
+As a non-admin, attempt user/reference/rate maintenance and manual notification scan, including a direct API call captured from developer tools.
+
+**Expected:** UI control is absent and server returns forbidden; no data changes.  
+**Actual/result:** ______________________________________________________________________
+
+### SEC-04 — Tenant isolation
+
+Copy a record identifier from International and request it while authenticated to US, then reverse the test.
+
+**Expected:** record is not found/available; no name, value, contact, timeline, notification or import information crosses tenant boundaries.  
+**Actual/result:** ______________________________________________________________________
+
+### SEC-05 — Audit timeline completeness
+
+For a single pursuit, complete at least one change from every implemented workflow and inspect Timeline after each save.
+
+**Expected:** user, time, action and useful detail are present for status, work/handoff, stage, value, restriction, probability, team, stakeholder, activity, request, document and completed-action changes.  
+**Actual/result:** ______________________________________________________________________
+
+### SEC-06 — Database immutability guards
+
+On the disposable database only, identify one row in `crm_auditevent`, `crm_valuehistory` and `crm_pursuitaction`, then attempt an ordinary `UPDATE` and `DELETE` inside a transaction using the application database role.
+
+**Expected:** PostgreSQL rejects mutation of protected historical rows. Roll back the transaction and retain the error as evidence. Do not perform this case on a shared or production database.  
+**Actual/result:** ______________________________________________________________________
+
+### SEC-07 — Error quality and atomicity
+
+For key forms, deliberately omit mandatory fields, use invalid dates/URLs/numbers and violate a permission or workflow gate.
+
+**Expected:** a specific message identifies the correction; modal data is not silently lost; no partial company/contact/lead conversion/action completion/stage close/request delivery is committed.  
+**Actual/result:** ______________________________________________________________________
+
+### SEC-08 — Keyboard and basic accessibility
+
+Use Tab/Shift+Tab, Enter, Space and Escape through login, navigation, board/list switch, forms, detail tabs, notifications and dialogs. Check visible focus and labels using browser accessibility inspection.
+
+**Expected:** focus is visible and logical, controls have names, dialogs can be completed/closed, stage selection works without drag, and color is not the sole meaning. Record any screen-reader or contrast issue as an accessibility defect; a full formal audit remains pending.  
+**Actual/result:** ______________________________________________________________________
+
+## 15. Final regression route
+
+Execute this sequence on one named synthetic pursuit to prove the full handoff:
+
+1. Admin creates/reactivates all required test users and validates reference options/rates.
+2. Maya creates a company and contact, sets consent and logs the first interaction.
+3. Maya creates a lead, changes status through Ready and assigns a future action.
+4. Independent Alex validates and converts it; confirm preserved source/contact/history and initial value.
+5. Alex assigns James as Pre-sales owner and Omar as Tech lead; adds/edits stakeholders.
+6. The holder completes an action and hands off a new future action; add and resolve a blocker.
+7. James creates a pre-sales deliverable; Omar progresses it; James/Alex approves; Omar delivers with actual effort.
+8. Add Proposal evidence, move through Pre-sales and Proposal, log client follow-up, revise value and inspect fixed FX history.
+9. Test Hold/revisit, return to active stage, then add Contract/PO/SOW evidence and close Won; separately close another record Lost.
+10. Verify all seven milestones, Timeline, Documents, Value history, My Work, Needs Attention, notifications and reports.
+11. Save views, perform a controlled bulk assignment, search the records globally and export forecast CSV.
+12. Run the admin notification scan twice; verify correct routing, read state, deduplication and automation status.
+13. Sign in as unrelated Standard, assigned Standard, Manager, Executive and Administrator to validate visibility and prohibited actions.
+14. Restart Docker and confirm data, preferences, read state, saved views, imports and histories persist.
+
+**Overall regression result:** ☐ Pass  ☐ Fail  
+**Evidence location:** __________________________________________________________________
+
+## 16. Coverage checklist
+
+Use this as the final completeness gate.
+
+| Capability | Cases | Result |
+|---|---|---|
+| Docker, migration, health, persistence and instance isolation | ENV-01–04 | ☐ |
+| Login, logout, inactive users, reset, session and CSRF recovery | AUTH-01–07 | ☐ |
+| Navigation, local search and responsive shell | NAV-01–03 | ☐ |
+| Overview, My Work, Needs Attention, next move, action history and concurrency | WORK-01–07 | ☐ |
+| Preferences, inbox/read history, scan, scheduler and all recipient rules | NOTIF-01–05 | ☐ |
+| Company/contact CRUD, ownership, engagement, DNC and collision | REL-01–10 | ☐ |
+| Lead create/status/nurture/disqualify/convert and preservation | LEAD-01–08 | ☐ |
+| Pipeline board/list, stages, gates, roles, stakeholders, values and milestones | OPP-01–16 | ☐ |
+| Pre-sales request/status/approval/effort and evidence links | PRE-01–04, DOC-01–02 | ☐ |
+| Global search, CSV templates/imports/errors/history, duplicates and quality | DATA-01–10 | ☐ |
+| Pipeline/funnel/lifecycle/forecast reports and CSV export | RPT-01–06 | ☐ |
+| Users, access levels, reference data, probabilities and rates | ADMIN-01–09 | ☐ |
+| Cross-role/tenant authorization, audit, immutability, errors and accessibility | SEC-01–08 | ☐ |
+
+## 17. Defect record template
+
+| Field | Entry |
+|---|---|
+| Defect ID / test case | |
+| Summary | |
+| Environment / URL / commit | |
+| Signed-in account and access level | |
+| Record name/ID | |
+| Preconditions | |
+| Exact steps | |
+| Expected result | |
+| Actual result | |
+| Screenshot/video/API response | |
+| Severity: Blocker / High / Medium / Low | |
+| Reproducibility | |
+| Retest result and commit | |
+
+### Release decision
+
+- **Pass:** every applicable case passes and no open Blocker/High defect remains.
+- **Pass with observations:** core business flow passes; accepted Medium/Low observations have owners and target releases.
+- **Fail:** a critical role, data boundary, stage/action transaction, financial visibility, audit history or persistence case fails.
+
+**Decision:** ____________________  **Approved by:** ____________________  **Date:** ____________________
