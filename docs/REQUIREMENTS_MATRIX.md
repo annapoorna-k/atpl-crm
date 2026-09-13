@@ -7,10 +7,10 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-02–05 | Global/pursuit roles, record permissions, restricted values | Partial | editable global access levels and activation plus pursuit roles and restricted values; fine-grained policy editor pending |
 | FR-06 | Immutable audit trail | Partial | alembic baseline triggers; comprehensive before/after coverage and runtime privileges pending |
 | FR-07 | 12-hour inactivity timeout | Implemented | atplcrm/security.py |
-| FR-10–11 | Companies/contacts | Partial | atplcrm/schemas.py and api.py; full field editing pending |
-| FR-12–17 | Activities, histories, sources, do-not-contact | Partial | atplcrm/api.py; paginated complete histories and speed acceptance pending |
+| FR-10–11 | Companies/contacts | Implemented | full company and section 7.5 contact fields, controlled values, ownership/source attribution and responsive create/edit/detail UI |
+| FR-12–17 | Activities, histories, sources, do-not-contact | Implemented | fast activity form with backdating, derived client-facing behavior, engagement/first-touch updates, protected outbound overrides and paginated Company/Contact histories |
 | FR-18–19 | Import and duplicate resolution | Partial | mapped CSV dry-run/import/error history and exact duplicate merge are implemented; Excel, fuzzy rules and field-level merge choice remain |
-| FR-20 | Contact collision | Partial | warning/notification exists; prior-touch contextual prompt pending |
+| FR-20 | Contact collision | Implemented | pre-save warning names the owner, last outbound touch and related pursuit; save remains permitted and creates a durable owner notification |
 | FR-21 | Universal search | Partial | tenant-scoped server search, type/owner/status/country filters and pagination implemented; ranked full-text indexes and saved recent searches remain |
 | FR-25–26 | Lead create/board/list/filters | Partial | server-paginated list and primary filters implemented; remaining specialized filters pending |
 | FR-27–29 | Independent validation, preserving conversion, nurture | Partial | atplcrm/services.py and api.py; explicit alternate routing and configurable calendars pending |

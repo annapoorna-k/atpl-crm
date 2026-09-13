@@ -5,10 +5,10 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 from . import presenters as out
-from .constants import MANAGEMENT
+from .constants import ACTIVITY_OUTCOMES, ACTIVITY_TYPES, COMPANY_TYPES, MANAGEMENT
 from .database import get_db
 from .models import Activity, AppSession, Artifact, AuditEvent, CommercialSetting, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PartnerInvolvement, PreSalesRequest, Pursuit, PursuitAction, PursuitContact, TeamRole, User, ValueHistory, WorkspaceReference
 from .references import contract as reference_contract, probability as stage_probability, require_code
@@ -94,7 +94,7 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db), 
 def bootstrap(db: Session = Depends(get_db), user: User = Depends(current_user), settings: Settings = Depends(get_settings)):
     users = db.scalars(select(User).where(User.tenant_id == user.tenant_id, User.is_active.is_(True)).order_by(User.first_name)).all()
     companies = db.scalars(scoped(db, Company, user).options(selectinload(Company.owner)).order_by(Company.name)).all()
-    contacts = db.scalars(scoped(db, Contact, user).options(selectinload(Contact.company), selectinload(Contact.owner)).order_by(Contact.first_name, Contact.last_name)).all()
+    contacts = db.scalars(scoped(db, Contact, user).options(selectinload(Contact.company), selectinload(Contact.owner), selectinload(Contact.sourced_by)).order_by(Contact.first_name, Contact.last_name)).all()
     pursuits = db.scalars(scoped(db, Pursuit, user).options(*user_options())).unique().all()
     leads = [item.lead for item in pursuits if item.lead]
     opportunities = [item.opportunity for item in pursuits if item.opportunity]
@@ -112,6 +112,7 @@ def bootstrap(db: Session = Depends(get_db), user: User = Depends(current_user),
 
 @router.post("/companies/", status_code=201)
 def create_company(payload: CompanyInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if payload.company_type not in COMPANY_TYPES: raise http_error(422, {"company_type": "Choose a valid company type."})
     if db.scalar(scoped(db, Company, user).where(func.lower(Company.name) == payload.name.lower())):
         raise http_error(422, {"name": "A company with this name already exists. Use the existing company."})
     owner = tenant_user(db, user, payload.owner)
@@ -127,6 +128,7 @@ def update_company(identifier: UUID, payload: CompanyPatch, db: Session = Depend
     if item.owner_id != user.id and user.level not in MANAGEMENT:
         raise http_error(403, "Only the relationship owner or management can edit this company.")
     values = payload.model_dump(exclude_unset=True)
+    if "company_type" in values and values["company_type"] not in COMPANY_TYPES: raise http_error(422, {"company_type": "Choose a valid company type."})
     if "owner" in values:
         values["owner_id"] = tenant_user(db, user, values.pop("owner")).id
     for key, value in values.items(): setattr(item, key, value)
@@ -138,13 +140,17 @@ def update_company(identifier: UUID, payload: CompanyPatch, db: Session = Depend
 @router.post("/contacts/", status_code=201)
 def create_contact(payload: ContactInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
     company = get_scoped(db, Company, user, payload.company); owner = tenant_user(db, user, payload.owner)
+    require_code(db, user, "sources", payload.source_channel, "source_channel")
+    sourced_by = tenant_user(db, user, payload.sourced_by) if payload.sourced_by else user
     email = str(payload.email).lower()
     if email and db.scalar(scoped(db, Contact, user).where(func.lower(Contact.email) == email)):
         raise http_error(422, {"email": "This email already exists. Open the existing contact instead."})
-    values = payload.model_dump(exclude={"company", "owner"}); values["email"] = email
-    item = Contact(**stamp(user), **values, company_id=company.id, owner_id=owner.id, sourced_by_id=user.id)
+    values = payload.model_dump(exclude={"company", "owner", "sourced_by"}); values["email"] = email
+    if values["engagement_status"] == "Do not contact": values["do_not_contact"] = True
+    if values["do_not_contact"]: values["engagement_status"] = "Do not contact"
+    item = Contact(**stamp(user), **values, company_id=company.id, owner_id=owner.id, sourced_by_id=sourced_by.id)
     db.add(item); audit(db, user, "Contact created", detail=item.name); db.commit(); db.refresh(item)
-    item.company, item.owner = company, owner
+    item.company, item.owner, item.sourced_by = company, owner, sourced_by
     return out.contact(db, item)
 
 
@@ -156,13 +162,19 @@ def update_contact(identifier: UUID, payload: ContactPatch, db: Session = Depend
     values = payload.model_dump(exclude_unset=True)
     if "company" in values: values["company_id"] = get_scoped(db, Company, user, values.pop("company")).id
     if "owner" in values: values["owner_id"] = tenant_user(db, user, values.pop("owner")).id
+    if "sourced_by" in values: values["sourced_by_id"] = tenant_user(db, user, values.pop("sourced_by")).id
+    if "source_channel" in values: require_code(db, user, "sources", values["source_channel"], "source_channel")
     if values.get("email"):
         duplicate = db.scalar(scoped(db, Contact, user).where(func.lower(Contact.email) == str(values["email"]).lower(), Contact.id != item.id))
         if duplicate: raise http_error(422, {"email": "This email already exists."})
         values["email"] = str(values["email"]).lower()
+    if values.get("engagement_status") == "Do not contact": values["do_not_contact"] = True
+    if values.get("do_not_contact") is True: values["engagement_status"] = "Do not contact"
+    if values.get("do_not_contact") is False and item.engagement_status == "Do not contact" and "engagement_status" not in values: values["engagement_status"] = "Not contacted"
+    before = {"owner_id": item.owner_id, "sourced_by_id": item.sourced_by_id, "engagement_status": item.engagement_status, "do_not_contact": item.do_not_contact, "source_channel": item.source_channel}
     for key, value in values.items(): setattr(item, key, value)
-    item.updated_by_id = user.id; audit(db, user, "Contact updated", detail=item.name); db.commit(); db.refresh(item)
-    item.company = get_scoped(db, Company, user, item.company_id); item.owner = tenant_user(db, user, item.owner_id)
+    item.updated_by_id = user.id; audit(db, user, "Contact updated", detail=item.name, before=before, after={"owner_id": item.owner_id, "sourced_by_id": item.sourced_by_id, "engagement_status": item.engagement_status, "do_not_contact": item.do_not_contact, "source_channel": item.source_channel}); db.commit(); db.refresh(item)
+    item.company = get_scoped(db, Company, user, item.company_id); item.owner = tenant_user(db, user, item.owner_id); item.sourced_by = tenant_user(db, user, item.sourced_by_id)
     return out.contact(db, item)
 
 
@@ -350,6 +362,28 @@ def update_probability(identifier: UUID, payload: ProbabilityInput, db: Session 
     return out.opportunity(db, load_opportunity(db, user, identifier), user)
 
 
+@router.get("/activities/")
+def list_activities(company: UUID | None = None, contact: UUID | None = None, page: int = 1, page_size: int = 20, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if not company and not contact: raise http_error(422, "Filter activity history by company or contact.")
+    if page < 1: raise http_error(422, {"page": "Page must be at least 1."})
+    if page_size < 1 or page_size > 100: raise http_error(422, {"page_size": "Choose a page size from 1 to 100."})
+    if company: get_scoped(db, Company, user, company)
+    if contact:
+        contact_row = get_scoped(db, Contact, user, contact)
+        if company and contact_row.company_id != company: raise http_error(422, "The contact does not belong to this company.")
+    conditions = [Activity.tenant_id == user.tenant_id, Activity.is_deleted.is_(False)]
+    if company: conditions.append(Activity.company_id == company)
+    if contact: conditions.append(Activity.contact_id == contact)
+    if user.level not in MANAGEMENT:
+        team_access = select(TeamRole.id).where(TeamRole.pursuit_id == Pursuit.id, TeamRole.user_id == user.id, TeamRole.is_deleted.is_(False)).exists()
+        conditions.append(or_(Opportunity.id.is_(None), Opportunity.restricted.is_(False), Pursuit.owner_id == user.id, Pursuit.sourced_by_id == user.id, Pursuit.holder_id == user.id, team_access))
+    joins = lambda statement: statement.outerjoin(Pursuit, Activity.pursuit_id == Pursuit.id).outerjoin(Opportunity, Opportunity.pursuit_id == Pursuit.id)
+    total = db.scalar(joins(select(func.count(Activity.id))).where(*conditions)) or 0
+    statement = joins(select(Activity)).where(*conditions).options(selectinload(Activity.company), selectinload(Activity.contact), selectinload(Activity.created_by), selectinload(Activity.pursuit)).order_by(Activity.activity_date.desc(), Activity.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    rows = db.scalars(statement).unique().all()
+    return {"items": [out.activity(item) for item in rows], "page": page, "page_size": page_size, "total": total, "pages": max(1, (total + page_size - 1) // page_size)}
+
+
 @router.post("/activities/", status_code=201)
 def create_activity(payload: ActivityInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
     company = get_scoped(db, Company, user, payload.company); pursuit = load_pursuit(db, user, payload.pursuit) if payload.pursuit else None; contact = get_scoped(db, Contact, user, payload.contact) if payload.contact else None
@@ -357,20 +391,34 @@ def create_activity(payload: ActivityInput, db: Session = Depends(get_db), user:
         require_work(db, user, pursuit)
         if pursuit.company_id != company.id: raise http_error(422, "The activity company must match the pursuit.")
     if contact and contact.company_id != company.id: raise http_error(422, "The contact must belong to the activity company.")
+    if payload.activity_type not in ACTIVITY_TYPES: raise http_error(422, {"activity_type": "Choose a supported activity type."})
+    if payload.outcome not in ACTIVITY_OUTCOMES: raise http_error(422, {"outcome": "Choose a supported activity outcome."})
     client_facing = payload.activity_type != "Internal note"
     if client_facing and not contact: raise http_error(422, {"contact": "Select the client contact for this interaction."})
     if contact and contact.do_not_contact and payload.direction == "Outbound" and client_facing and not payload.override_reason: raise http_error(422, {"override_reason": "This contact is marked Do not contact. An override reason is required."})
     activity_date = payload.activity_date or datetime.now(timezone.utc)
     if utc(activity_date) > datetime.now(timezone.utc): raise http_error(422, {"activity_date": "Log completed interactions only. Schedule future work as a next action."})
+    previous_activity = db.scalar(scoped(db, Activity, user).where(Activity.contact_id == contact.id).order_by(Activity.activity_date.desc()).limit(1)) if contact else None
+    previous_outbound = db.execute(scoped(db, Activity, user).with_only_columns(Activity.activity_date, Pursuit.name).outerjoin(Pursuit, Activity.pursuit_id == Pursuit.id).where(Activity.contact_id == contact.id, Activity.direction == "Outbound", Activity.is_client_facing.is_(True)).order_by(Activity.activity_date.desc()).limit(1)).first() if contact else None
     item = Activity(**stamp(user), pursuit_id=pursuit.id if pursuit else None, contact_id=contact.id if contact else None, company_id=company.id, activity_type=payload.activity_type, is_client_facing=client_facing, direction=payload.direction, activity_date=activity_date, outcome=payload.outcome, subject=payload.subject, notes=payload.notes, override_reason=payload.override_reason)
     db.add(item)
     if pursuit and client_facing:
         if not pursuit.last_client_interaction or utc(activity_date) > utc(pursuit.last_client_interaction): pursuit.last_client_interaction = activity_date
         if payload.direction == "Outbound" and (not pursuit.first_contacted_at or utc(activity_date) < utc(pursuit.first_contacted_at)): pursuit.first_contacted_at = activity_date
+    if contact and client_facing:
+        if payload.direction == "Outbound" and (not contact.first_contacted_at or utc(activity_date) < utc(contact.first_contacted_at)): contact.first_contacted_at = activity_date
+        newest = not previous_activity or utc(activity_date) >= utc(previous_activity.activity_date)
+        if newest and not contact.do_not_contact:
+            if payload.activity_type in {"Meeting", "Demo", "Workshop"}: contact.engagement_status = "Meeting held"
+            elif payload.outcome in {"Responded", "Meeting booked", "Referred onward"}: contact.engagement_status = "Engaged"
+            elif payload.direction == "Outbound" and payload.outcome == "No response": contact.engagement_status = "Contacted no response"
     warning = None
     if contact and client_facing and payload.direction == "Outbound" and contact.owner_id != user.id:
-        warning = f"{contact.owner.display_name} owns this contact and has been notified."
-        db.add(Notification(**stamp(user), recipient_id=contact.owner_id, pursuit_id=pursuit.id if pursuit else None, key=f"collision:{item.id}", message=f"{user.display_name} logged outreach to your contact {contact.name}."))
+        if previous_outbound:
+            context = f" Last outbound touch: {previous_outbound[0].date().isoformat()}" + (f" on {previous_outbound[1]}." if previous_outbound[1] else ".")
+        else: context = " No earlier outbound touch is recorded."
+        warning = f"{contact.owner.display_name} owns this contact.{context} The owner has been notified."
+        db.add(Notification(**stamp(user), recipient_id=contact.owner_id, pursuit_id=pursuit.id if pursuit else None, key=f"collision:{item.id}", message=f"{user.display_name} logged outbound {payload.activity_type.lower()} activity to your contact {contact.name}." + context))
     audit(db, user, "Activity logged", pursuit, payload.activity_type); db.commit(); db.refresh(item); item.company, item.contact, item.pursuit, item.created_by = company, contact, pursuit, user
     return {"activity": out.activity(item), "warning": warning}
 

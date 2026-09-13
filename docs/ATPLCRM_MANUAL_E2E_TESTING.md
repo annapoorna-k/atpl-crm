@@ -357,44 +357,44 @@ As Maya, edit her company. Create a company owned by Omar and try to edit it as 
 
 ### REL-03 — Company detail
 
-Open a company and verify Contacts, All pursuits and Company interactions. Open a contact and pursuit from the detail.
+Open a company and verify its owner, domain, industry, global-account/region data, Contacts, All pursuits and Company interactions. Create more than 20 interactions, use **Load more**, then open a contact and pursuit from the detail.
 
-**Expected:** only records belonging to the company appear and navigation opens the selected record.  
+**Expected:** only records belonging to the company appear; open and closed pursuits are included; the consolidated timeline is newest-first and its shown/total count reaches the complete history through pagination; navigation opens the selected record.
 **Actual/result:** ______________________________________________________________________
 
 ### REL-04 — Create and edit a contact
 
-Create a contact with company, name, title, email, phone, country, owner, source, consent basis and outbound-contact choice. Edit the same contact.
+Create a contact with company, name, title, seniority, email, phone, mobile, LinkedIn URL, country/city, relationship owner, sourced by, source channel/detail, consent basis, engagement status, relationship notes and outbound-contact choice. Edit every field on the same contact.
 
 **Expected:** values persist, company association is correct, and duplicate email is rejected. Owner/management edit rules match REL-02.  
 **Actual/result:** ______________________________________________________________________
 
 ### REL-05 — Contact detail and engagement counters
 
-Open a contact and compare email, owner, source, outbound touches, associated pursuits and interaction history. Log an outbound activity and refresh.
+Open a contact and compare email, phone/location, owner, source/sourced-by, consent, seniority, first contacted, last touched, outbound touches, notes, associated pursuits and interaction history. Log No response, Responded and Meeting activities and refresh. Add more than 20 entries and use **Load more**.
 
-**Expected:** completed outbound client-facing activity increases touch count and appears in history; linked pursuits are accurate.  
+**Expected:** completed outbound client-facing activity increases touch count and sets first contacted once; last touched follows the newest activity of any type; engagement progresses to Contacted no response, Engaged and Meeting held as applicable; backdated entries do not regress the current status; every linked lead/opportunity and all history pages are accurate.
 **Actual/result:** ______________________________________________________________________
 
 ### REL-06 — Log client interaction
 
-From a pursuit or contact, select **Log interaction**. Test Call, Email, Meeting and Internal note, inbound/outbound, outcomes and optional notes.
+From a pursuit or contact, select **Log interaction**. Test every configured type, inbound/outbound, each outcome, current time, a backdated completion and optional notes.
 
-**Expected:** client-facing activity requires a contact; company/contact/pursuit must match; future activity time is rejected; client-facing activity updates last-client-interaction; Internal note does not.  
+**Expected:** entry can be completed quickly; client-facing activity requires a contact; company/contact/pursuit must match; future activity time is rejected; backdated activity sorts by completion time; client-facing activity updates last-client-interaction; Internal note remains visually distinct and does not update pursuit client interaction or contact engagement.
 **Actual/result:** ______________________________________________________________________
 
 ### REL-07 — Do-not-contact control
 
 Mark a contact **Do not contact**. Try an outbound client interaction without and then with an override reason.
 
-**Expected:** the first save is blocked; a recorded reason allows the second; inbound and Internal note behavior remains appropriate.  
+**Expected:** contact status becomes Do not contact and the detail banner explains the control; the first save is blocked; a recorded reason allows the second; the override appears in history; inbound and Internal note behavior remains appropriate.
 **Actual/result:** ______________________________________________________________________
 
 ### REL-08 — Contact collision notification
 
-As Maya, log outbound contact against a contact owned by Omar.
+As Maya, open the activity form for a contact owned by Omar that already has an outbound touch linked to a pursuit, then log another outbound interaction.
 
-**Expected:** Maya sees a warning naming the owner; Omar receives a durable notification.  
+**Expected:** before saving, Maya sees a non-blocking warning naming Omar, the prior outbound date and related pursuit. The save remains available, and Omar receives a durable notification with the same context. Inbound and Internal note entries do not trigger the warning.
 **Actual/result:** ______________________________________________________________________
 
 ### REL-09 — Company/contact lists

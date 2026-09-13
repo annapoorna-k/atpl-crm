@@ -58,6 +58,7 @@ import type {
   Partner,
   PartnerPerformanceReport,
   UndocumentedPartnerReport,
+  ActivityPage,
 } from "./types";
 
 const money = (
@@ -134,6 +135,7 @@ type FormSpec = {
   fields: Field[];
   submit: (values: Record<string, string>) => Promise<unknown>;
   label?: string;
+  notice?: (values: Record<string, string>) => string;
 };
 function Avatar({ name, small = false }: { name: string; small?: boolean }) {
   return (
@@ -191,7 +193,8 @@ function FormModal({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(() => spec.notice?.(Object.fromEntries(spec.fields.map((field) => [field.name, field.value ?? ""]))) ?? "");
   useEffect(() => {
     ref.current?.showModal();
   }, []);
@@ -236,7 +239,7 @@ function FormModal({
       {spec.description && (
         <p className="form-description">{spec.description}</p>
       )}
-      <form onSubmit={submit}>
+      <form onSubmit={submit} onChange={(event) => setNotice(spec.notice?.(Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>) ?? "")}>
         <div className="form-grid">
           {spec.fields.map((f) => (
             <label key={f.name} className={f.type === "textarea" ? "full" : ""}>
@@ -275,6 +278,12 @@ function FormModal({
             </label>
           ))}
         </div>
+        {notice && (
+          <div role="status" className="form-notice">
+            <AlertCircle size={18} />
+            <span><strong>Contact owner warning</strong>{notice}</span>
+          </div>
+        )}
         {error && (
           <div role="alert" className="error">
             <AlertCircle size={18} />
@@ -428,7 +437,8 @@ export default function App() {
     >([]),
     [undocumentedPartners, setUndocumentedPartners] = useState<
       UndocumentedPartnerReport[]
-    >([]);
+    >([]),
+    [relationshipHistory, setRelationshipHistory] = useState<ActivityPage | null>(null);
   const detailRef = useRef<HTMLDialogElement>(null);
   async function load() {
     try {
@@ -517,6 +527,17 @@ export default function App() {
   useEffect(() => {
     if (selected || companyId || contactId) detailRef.current?.showModal();
   }, [selected, companyId, contactId]);
+  useEffect(() => {
+    if (!companyId && !contactId) {
+      setRelationshipHistory(null);
+      return;
+    }
+    const filter = contactId ? `contact=${contactId}` : `company=${companyId}`;
+    setRelationshipHistory(null);
+    api<ActivityPage>(`activities/?${filter}&page=1&page_size=20`)
+      .then(setRelationshipHistory)
+      .catch((e) => setToast((e as Error).message));
+  }, [companyId, contactId, data]);
   const go = (p: string) => {
     location.hash = p;
     setMobile(false);
@@ -832,21 +853,33 @@ export default function App() {
           value: c?.job_title,
           required: false,
         }),
+        field("seniority", "Seniority", {
+          options: options(["C-level", "VP or Head", "Director", "Manager", "Individual contributor", "Unknown"]),
+          value: c?.seniority ?? "Unknown",
+        }),
         field("email", "Email", {
           type: "email",
           value: c?.email,
           required: false,
         }),
         field("phone", "Phone", { value: c?.phone, required: false }),
+        field("mobile", "Mobile", { value: c?.mobile, required: false }),
+        field("linkedin_url", "LinkedIn profile", { type: "url", value: c?.linkedin_url, required: false }),
         field("country", "Country", { value: c?.country }),
+        field("city", "City", { value: c?.city, required: false }),
         field("owner", "Relationship owner", {
           options: userOptions,
           value: String(c?.owner_id ?? d.user.id),
+        }),
+        field("sourced_by", "Sourced by", {
+          options: userOptions,
+          value: String(c?.sourced_by_id ?? d.user.id),
         }),
         field("source_channel", "Source", {
           options: options(d.reference.sources),
           value: c?.source_channel ?? "LinkedIn",
         }),
+        field("source_detail", "Source detail", { value: c?.source_detail, required: false }),
         field("consent_basis", "Contact obtained through", {
           options: options([
             "Business card or event",
@@ -864,6 +897,11 @@ export default function App() {
           ],
           value: String(c?.do_not_contact ?? false),
         }),
+        field("engagement_status", "Engagement status", {
+          options: options(["Not contacted", "Contacted no response", "Engaged", "Meeting held", "Unresponsive", "Do not contact"]),
+          value: c?.engagement_status ?? "Not contacted",
+        }),
+        field("notes", "Relationship notes", { type: "textarea", value: c?.notes, required: false }),
       ],
       submit: (v) =>
         api(`contacts/${c ? c.id + "/" : ""}`, c ? "PATCH" : "POST", v),
@@ -954,6 +992,11 @@ export default function App() {
           options: options(["Outbound", "Inbound"]),
           value: "Outbound",
         }),
+        field("activity_date", "Completed at", {
+          type: "datetime-local",
+          required: false,
+          hint: "Leave blank to use the current time. Future dates are not accepted.",
+        }),
         field("subject", "Subject"),
         field("outcome", "Outcome", {
           options: options([
@@ -971,11 +1014,20 @@ export default function App() {
           required: false,
         }),
       ],
+      notice: (values) => {
+        const selectedContact = d.contacts.find((item) => item.id === values.contact);
+        if (!selectedContact || selectedContact.owner_id === d.user.id || values.direction !== "Outbound" || values.activity_type === "Internal note") return "";
+        const prior = selectedContact.last_outbound_at
+          ? ` Last outbound touch: ${date(selectedContact.last_outbound_at)}${selectedContact.last_outbound_pursuit ? ` on ${selectedContact.last_outbound_pursuit}` : ""}.`
+          : " No earlier outbound touch is recorded.";
+        return `${selectedContact.owner} owns this relationship.${prior} You may continue; the owner will be notified.`;
+      },
       submit: async (v) => {
         const result = await api<{ warning?: string }>("activities/", "POST", {
           ...v,
           contact: v.contact || null,
           pursuit: r?.id ?? null,
+          activity_date: v.activity_date || null,
         });
         if (result.warning) setToast(result.warning);
         return result;
@@ -1578,12 +1630,44 @@ export default function App() {
         ),
     });
   }
+  async function loadMoreHistory() {
+    if (!relationshipHistory || relationshipHistory.page >= relationshipHistory.pages) return;
+    const filter = contactId ? `contact=${contactId}` : `company=${companyId}`;
+    try {
+      const next = await api<ActivityPage>(`activities/?${filter}&page=${relationshipHistory.page + 1}&page_size=${relationshipHistory.page_size}`);
+      setRelationshipHistory({ ...next, items: [...relationshipHistory.items, ...next.items] });
+    } catch (e) {
+      setToast((e as Error).message);
+    }
+  }
+  const historyView = () => {
+    if (!relationshipHistory) return <div className="history-loading"><LoaderCircle className="spin" size={18} /> Loading complete history…</div>;
+    if (!relationshipHistory.items.length) return <Empty title="No interactions yet" text="Log the first email, call, meeting or internal note here." />;
+    return <>
+      {relationshipHistory.items.map((a) => (
+        <div className="timeline-item" key={a.id}>
+          <span className={`timeline-dot ${a.is_client_facing ? "client" : "internal"}`} />
+          <div>
+            <small>{date(a.date)} · {a.activity_type} · {a.direction} · {a.author}</small>
+            <h3>{a.subject}</h3>
+            <p>{[a.contact, a.pursuit, a.outcome].filter(Boolean).join(" · ")}</p>
+            {a.notes && <p>{a.notes}</p>}
+            {a.override_reason && <p className="override-note">Override: {a.override_reason}</p>}
+          </div>
+        </div>
+      ))}
+      <div className="history-footer">
+        <span>Showing {relationshipHistory.items.length} of {relationshipHistory.total} interactions</span>
+        {relationshipHistory.page < relationshipHistory.pages && <button className="button secondary" onClick={() => void loadMoreHistory()}>Load more</button>}
+      </div>
+    </>;
+  };
   const title =
     nav
       .map((g) => g.items.map(([key, label]) => ({ key, label })))
       .flat()
       .find((n) => n.key === page)?.label ?? "Overview";
-  const table = (records: Pursuit[], limit?: number) => (
+  const table = (records: Pursuit[], limit?: number, showAll = false) => (
     <div className="table-scroll">
       <table>
         <thead>
@@ -1597,7 +1681,7 @@ export default function App() {
           </tr>
         </thead>
         <tbody>
-          {filtered(records)
+          {(showAll ? records : filtered(records))
             .slice(0, limit)
             .map((r) => (
               <tr key={r.id}>
@@ -4118,6 +4202,12 @@ export default function App() {
                   Add contact
                 </button>
               </div>
+              <div className="detail-meta relationship-meta">
+                <div><small>Relationship owner</small><strong>{company.owner}</strong></div>
+                <div><small>Domain</small><strong>{company.domain || "Not provided"}</strong></div>
+                <div><small>Industry</small><strong>{company.industry || "Not provided"}</strong></div>
+                <div><small>Global account</small><strong>{company.global_account_name || "Local account"}</strong><span>{company.primary_region || "No primary region"}</span></div>
+              </div>
               <h3>Contacts</h3>
               {d.contacts
                 .filter((c) => c.company_id === company.id)
@@ -4141,22 +4231,9 @@ export default function App() {
                   </button>
                 ))}
               <h3 className="spaced">All pursuits</h3>
-              {table(all.filter((r) => r.company_id === company.id))}
+              {table(all.filter((r) => r.company_id === company.id), undefined, true)}
               <h3 className="spaced">Company interactions</h3>
-              {d.activities
-                .filter((a) => a.company === company.name)
-                .map((a) => (
-                  <div className="timeline-item" key={a.id}>
-                    <span className="timeline-dot" />
-                    <div>
-                      <small>
-                        {date(a.date)} · {a.author}
-                      </small>
-                      <h3>{a.subject}</h3>
-                      <p>{a.notes}</p>
-                    </div>
-                  </div>
-                ))}
+              {historyView()}
             </div>
           )}
           {contact && (
@@ -4191,35 +4268,30 @@ export default function App() {
                 <div>
                   <small>Source</small>
                   <strong>{contact.source_channel}</strong>
+                  <span>{contact.source_detail || `Sourced by ${contact.sourced_by}`}</span>
                 </div>
                 <div>
                   <small>Outbound touches</small>
                   <strong>{contact.touch_count}</strong>
+                  <span>First: {date(contact.first_contacted_at)} · Last: {date(contact.last_touched_at)}</span>
                 </div>
+                <div><small>Phone / mobile</small><strong>{contact.phone || contact.mobile || "Not provided"}</strong></div>
+                <div><small>Location</small><strong>{[contact.city, contact.country].filter(Boolean).join(", ")}</strong></div>
+                <div><small>Seniority</small><strong>{contact.seniority}</strong></div>
+                <div><small>Consent basis</small><strong>{contact.consent_basis}</strong></div>
               </div>
+              {contact.do_not_contact && <div className="dnc-banner"><ShieldCheck size={18} /><span><strong>Do not contact</strong>Outbound activity requires an override reason. Every override is retained in the activity history.</span></div>}
+              {contact.notes && <><h3>Relationship context</h3><p className="relationship-notes">{contact.notes}</p></>}
               <h3>Associated pursuits</h3>
               {table(
                 all.filter(
                   (p) =>
                     p.contacts.some((c) => c.id === contact.id) ||
                     p.primary_contact_id === contact.id,
-                ),
+                ), undefined, true
               )}
               <h3 className="spaced">Interaction history</h3>
-              {d.activities
-                .filter((a) => a.contact_id === contact.id)
-                .map((a) => (
-                  <div className="timeline-item" key={a.id}>
-                    <span className="timeline-dot" />
-                    <div>
-                      <small>
-                        {date(a.date)} · {a.activity_type} · {a.author}
-                      </small>
-                      <h3>{a.subject}</h3>
-                      <p>{a.notes}</p>
-                    </div>
-                  </div>
-                ))}
+              {historyView()}
             </div>
           )}
         </dialog>

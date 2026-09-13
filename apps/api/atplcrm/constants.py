@@ -19,6 +19,13 @@ DISQUALIFY_REASONS = ["No genuine requirement", "Outside capability", "No budget
 REQUEST_STATUSES = ["Requested", "Clarification required", "Accepted", "In progress", "Ready for review", "Approved to share", "Delivered", "Blocked", "Cancelled"]
 MANAGEMENT = {"Administrator", "Executive", "Manager"}
 
+COMPANY_TYPES = ["Client", "Prospect", "Referral partner", "Reseller", "Local partner", "Prime contractor", "Subcontractor"]
+CONTACT_SENIORITIES = ["C-level", "VP or Head", "Director", "Manager", "Individual contributor", "Unknown"]
+ENGAGEMENT_STATUSES = ["Not contacted", "Contacted no response", "Engaged", "Meeting held", "Unresponsive", "Do not contact"]
+CONSENT_BASES = ["Business card or event", "Referral", "Public professional profile", "Inbound enquiry", "Existing client relationship"]
+ACTIVITY_TYPES = ["Email", "Call", "LinkedIn message", "LinkedIn connection request", "WhatsApp", "Meeting", "Demo", "Workshop", "Event conversation", "Internal note"]
+ACTIVITY_OUTCOMES = ["No response", "Responded", "Meeting booked", "Referred onward", "Declined", "Not relevant"]
+
 REFERENCE_DEFAULTS = {
     "stages": [(code, label, PROBABILITIES[code]) for code, label in STAGES],
     "lead_statuses": [(code, label, None) for code, label in LEAD_STATUSES],

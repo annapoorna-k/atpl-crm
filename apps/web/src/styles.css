@@ -1826,6 +1826,38 @@ td small {
   margin-top: 7px;
   line-height: 1.8;
 }
+.timeline-dot.client {
+  border-color: var(--navy);
+  background: var(--yellow);
+}
+.timeline-dot.internal {
+  border-color: #9aa9b5;
+  background: #eef2f5;
+}
+.form-notice,
+.dnc-banner {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  border: 1px solid #efd47c;
+  background: #fff9e8;
+  color: #66501a;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-top: 14px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.form-notice svg,
+.dnc-banner svg { flex: 0 0 auto; margin-top: 1px; }
+.form-notice strong,
+.dnc-banner strong { display: block; color: var(--navy); }
+.dnc-banner { margin: 20px 0; border-color: #e7bd9d; background: #fff5ed; }
+.history-loading { display: flex; align-items: center; gap: 9px; color: #708696; padding: 24px 0; font-size: 12px; }
+.history-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--border); padding-top: 16px; color: #708696; font-size: 11px; }
+.relationship-notes { white-space: pre-wrap; color: #627988; line-height: 1.7; margin: 8px 0 24px; }
+.override-note { color: #8a541f !important; font-weight: 600; }
+.relationship-meta { margin: 20px 0 28px; }
 .spaced {
   margin-top: 28px !important;
   margin-bottom: 15px !important;

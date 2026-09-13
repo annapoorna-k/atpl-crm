@@ -14,12 +14,12 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.8, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.9, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
 - Branded responsive overview, My Work, Needs Attention, lead/opportunity boards and lists, company/contact detail, pre-sales queue, basic reports and read-only configuration overview.
-- Database-backed company/contact creation and editing, lead creation, status changes, independent validation, nurture/disqualification and idempotent conversion.
+- Complete company and contact editing, including relationship ownership, source attribution, consent, prescribed engagement status, communication details and do-not-contact control; lead creation, status changes, independent validation, nurture/disqualification and idempotent conversion.
 - Shared pursuit context preserves the original lead, source, contacts, team and timeline while keeping Lead and Opportunity separate objects and board populations.
 - Ball in Court, atomic action completion and future handoff, immutable completed-action history, blocker owner/resolution, optimistic concurrency, stale/overdue flags and client-only interaction tracking.
 - Drag-and-drop and accessible-select opportunity stage changes with evidence prompts, row locking and version-conflict protection; required pre-sales roles; won/lost/hold validation; probability overrides; restricted commercial values and append-only value history.
@@ -27,7 +27,9 @@ This is **v0.8, an initial working core**, using synthetic data and local passwo
 - Server-backed My Work queues for overdue, today and upcoming actions, blockers owned by the user, and assigned pre-sales deliverables.
 - Needs Attention exception queue for overdue or missing actions, long-held pursuits, aged blockers, client inactivity, expired close dates, delayed validation and overdue deliverables.
 - Per-user notification preferences and thresholds, durable in-app delivery history, escalation routing, 15-minute exception scans, Monday leadership summaries, and automation run/failure monitoring.
-- Team assignments, pre-sales request creation/status updates, secure document-link registration, basic contact collision notifications and periodic attention/revisit notifications.
+- Fast backdated activity entry with derived client-facing behavior, automatic contact engagement/first-touch updates, pre-save cross-owner context and durable collision notifications.
+- Company 360 and Contact Detail show complete paginated interaction histories, every related pursuit, source and relationship context, and retained do-not-contact overrides.
+- Team assignments, pre-sales request creation/status updates, secure document-link registration and periodic attention/revisit notifications.
 - Administrator-managed local users, access levels, activation and password resets, plus configurable workflow labels, stage probabilities and exchange rates.
 - Tenant-scoped global search, mapped CSV previews and imports for companies, contacts and leads, downloadable templates/error reports, import history, exact-match duplicate review/merge and a data-quality dashboard.
 - Server-paginated company, contact, lead and opportunity lists with search, owner, workflow, priority, country and sort controls; reusable personal saved views; manager-only bulk owner/Ball-in-Court assignment with audit and concurrent-edit protection.
@@ -38,7 +40,7 @@ This is **v0.8, an initial working core**, using synthetic data and local passwo
 - Complete Won/Lost evidence capture, project and delivery-handoff fields, optional commercial approval evidence and stored stage-default probability beside overrides.
 - Tenant-scoped APIs, session/CSRF protection, non-root app/web containers, persistent database/queue volumes, migration-before-start dependencies.
 
-See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. The dashboard bootstrap API is intended for the seeded/early dataset; full activity pagination, analytics and scale benchmarks are still required.
+See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. Relationship histories paginate independently; the dashboard bootstrap API is still intended for the seeded/early dataset, and scale benchmarks remain required.
 
 Before approving a local release, use the [manual end-to-end testing handbook](docs/ATPLCRM_MANUAL_E2E_TESTING.md). An editable Word copy with embedded UI screenshots is available at `docs/ATPLCRM_v0.8_Manual_E2E_Testing_Handbook.docx`.
 

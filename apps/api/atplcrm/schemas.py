@@ -17,7 +17,7 @@ class LoginInput(Input):
 class CompanyInput(Input):
     name: str = Field(min_length=1, max_length=180)
     domain: str = Field("", max_length=180)
-    company_type: str = Field("Prospect", max_length=40)
+    company_type: Literal["Client", "Prospect", "Referral partner", "Reseller", "Local partner", "Prime contractor", "Subcontractor"] = "Prospect"
     industry: str = Field("", max_length=100)
     country: str = Field(min_length=1, max_length=80)
     global_account_name: str = Field("", max_length=180)
@@ -37,18 +37,19 @@ class ContactInput(Input):
     last_name: str = Field(min_length=1, max_length=100)
     email: EmailStr | Literal[""] = ""
     job_title: str = Field("", max_length=100)
-    seniority: str = Field("Unknown", max_length=40)
+    seniority: Literal["C-level", "VP or Head", "Director", "Manager", "Individual contributor", "Unknown"] = "Unknown"
     phone: str = Field("", max_length=40)
     mobile: str = Field("", max_length=40)
     linkedin_url: str = Field("", max_length=200)
     country: str = Field(min_length=1, max_length=80)
     city: str = Field("", max_length=80)
     owner: int
+    sourced_by: int | None = None
     source_channel: str = "Other"
     source_detail: str = Field("", max_length=180)
-    engagement_status: str = Field("Not contacted", max_length=40)
+    engagement_status: Literal["Not contacted", "Contacted no response", "Engaged", "Meeting held", "Unresponsive", "Do not contact"] = "Not contacted"
     do_not_contact: bool = False
-    consent_basis: str = Field("Business card or event", max_length=80)
+    consent_basis: Literal["Business card or event", "Referral", "Public professional profile", "Inbound enquiry", "Existing client relationship"] = "Business card or event"
     notes: str = ""
 
 
@@ -250,10 +251,10 @@ class ActivityInput(Input):
     pursuit: UUID | None = None
     contact: UUID | None = None
     company: UUID
-    activity_type: str
+    activity_type: Literal["Email", "Call", "LinkedIn message", "LinkedIn connection request", "WhatsApp", "Meeting", "Demo", "Workshop", "Event conversation", "Internal note"]
     direction: Literal["Outbound", "Inbound"] = "Outbound"
     activity_date: datetime | None = None
-    outcome: str = Field("Responded", max_length=40)
+    outcome: Literal["No response", "Responded", "Meeting booked", "Referred onward", "Declined", "Not relevant"] = "Responded"
     subject: str = Field(min_length=1, max_length=250)
     notes: str = ""
     override_reason: str = ""

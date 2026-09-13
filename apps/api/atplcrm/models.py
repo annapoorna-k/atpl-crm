@@ -83,6 +83,7 @@ class Contact(RecordMixin, Base):
     sourced_by_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"))
     source_channel: Mapped[str] = mapped_column(String(80), default="Other")
     source_detail: Mapped[str] = mapped_column(String(180), default="")
+    first_contacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     engagement_status: Mapped[str] = mapped_column(String(40), default="Not contacted")
     do_not_contact: Mapped[bool] = mapped_column(Boolean, default=False)
     consent_basis: Mapped[str] = mapped_column(String(80), default="Business card or event")

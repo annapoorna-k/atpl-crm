@@ -46,6 +46,8 @@ export interface Contact {
   linkedin_url: string;
   owner: string;
   owner_id: number;
+  sourced_by: string;
+  sourced_by_id: number;
   source_channel: string;
   source_detail: string;
   engagement_status: string;
@@ -53,7 +55,10 @@ export interface Contact {
   consent_basis: string;
   notes: string;
   touch_count: number;
+  first_contacted_at: string | null;
   last_touched_at: string | null;
+  last_outbound_at: string | null;
+  last_outbound_pursuit: string | null;
 }
 export interface Pursuit {
   id: string;
@@ -179,7 +184,17 @@ export interface Activity {
   author: string;
   company: string;
   contact_id: string | null;
+  contact: string | null;
   pursuit_id: string | null;
+  pursuit: string | null;
+  override_reason: string;
+}
+export interface ActivityPage {
+  items: Activity[];
+  page: number;
+  page_size: number;
+  total: number;
+  pages: number;
 }
 export interface Request {
   id: string;
