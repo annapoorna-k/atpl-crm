@@ -1,7 +1,8 @@
 """Paginated lists, personal views, bulk assignment and stakeholder editing."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -12,14 +13,14 @@ from . import presenters as out
 from .api import user_options
 from .constants import MANAGEMENT
 from .database import get_db
-from .models import Company, Contact, Lead, Opportunity, Pursuit, PursuitContact, SavedView, User
+from .models import Company, Contact, Lead, Opportunity, PartnerInvolvement, Pursuit, PursuitContact, SavedView, TeamRole, User
 from .schemas import BulkAssignmentInput, SavedViewInput, SavedViewPatch, StakeholderInput, StakeholderPatch
 from .security import current_user
 from .services import audit, get_scoped, http_error, require_work, scoped, stamp
 
 router = APIRouter(prefix="/api/v1/productivity", tags=["productivity"])
 ENTITY_TYPES = {"companies", "contacts", "leads", "opportunities"}
-ALLOWED_VIEW_FILTERS = {"q", "owner_id", "status", "country", "source", "service", "priority", "sort", "direction"}
+ALLOWED_VIEW_FILTERS = {"q","owner_id","holder_id","status","country","source","service","priority","blocker","partner","action_from","action_to","interaction_from","interaction_to","close_period","close_from","close_to","value_min","value_max","sort","direction"}
 
 
 def manager(user: User) -> None:
@@ -99,6 +100,11 @@ def record_list(
     entity_type: str,
     q: str = Query("", max_length=120),
     owner_id: int | None = None,
+    holder_id: int | None = None,
+    action_from: date | None = None, action_to: date | None = None,
+    interaction_from: date | None = None, interaction_to: date | None = None,
+    blocker: str = "", partner: str = "", close_period: str = "", close_from: date | None = None, close_to: date | None = None,
+    value_min: Decimal | None = Query(None, ge=0), value_max: Decimal | None = Query(None, ge=0),
     status: str = "",
     country: str = "",
     source: str = "",
@@ -112,6 +118,10 @@ def record_list(
     user: User = Depends(current_user),
 ):
     if entity_type not in ENTITY_TYPES: raise http_error(404, "Record list not found.")
+    if action_from and action_to and action_from > action_to: raise http_error(422, {"action_to": "End date must be on or after the start date."})
+    if interaction_from and interaction_to and interaction_from > interaction_to: raise http_error(422, {"interaction_to": "End date must be on or after the start date."})
+    if close_from and close_to and close_from > close_to: raise http_error(422, {"close_to": "End date must be on or after the start date."})
+    if value_min is not None and value_max is not None and value_min > value_max: raise http_error(422, {"value_max": "Maximum value must be at least the minimum value."})
     descending = direction != "asc"; needle = f"%{q.strip()}%"
     if entity_type == "companies":
         statement = scoped(db, Company, user).options(selectinload(Company.owner))
@@ -138,7 +148,12 @@ def record_list(
         if country: statement = statement.where(func.lower(Company.country) == country.casefold())
         if source: statement = statement.where(Pursuit.source_channel == source)
         if priority: statement = statement.where(Pursuit.priority == priority)
-        columns = {"name": Pursuit.name, "action_date": Pursuit.action_date, "created": Pursuit.created_at, "updated": Pursuit.updated_at}
+        if holder_id: statement=statement.where(Pursuit.holder_id==holder_id)
+        if action_from: statement=statement.where(Pursuit.action_date>=action_from)
+        if action_to: statement=statement.where(Pursuit.action_date<=action_to)
+        if interaction_from: statement=statement.where(Pursuit.last_client_interaction>=datetime.combine(interaction_from,datetime.min.time(),tzinfo=timezone.utc))
+        if interaction_to: statement=statement.where(Pursuit.last_client_interaction<datetime.combine(interaction_to+timedelta(days=1),datetime.min.time(),tzinfo=timezone.utc))
+        columns = {"name": Pursuit.name, "action_date": Pursuit.action_date, "last_interaction": Pursuit.last_client_interaction, "created": Pursuit.created_at, "updated": Pursuit.updated_at}
         order = columns.get(sort, Pursuit.updated_at); statement = statement.order_by(order.desc() if descending else order.asc(), Lead.id)
         total, items = paginated(db, statement, page, page_size); payload = [out.lead(db, item, user) for item in items]
     else:
@@ -150,7 +165,29 @@ def record_list(
         if source: statement = statement.where(Pursuit.source_channel == source)
         if service: statement = statement.where(Opportunity.service_line == service)
         if priority: statement = statement.where(Pursuit.priority == priority)
-        columns = {"name": Pursuit.name, "action_date": Pursuit.action_date, "close_date": Opportunity.expected_close_date, "created": Pursuit.created_at, "updated": Pursuit.updated_at}
+        if holder_id: statement=statement.where(Pursuit.holder_id==holder_id)
+        if blocker: statement=statement.where(Pursuit.blocker==blocker)
+        if action_from: statement=statement.where(Pursuit.action_date>=action_from)
+        if action_to: statement=statement.where(Pursuit.action_date<=action_to)
+        if interaction_from: statement=statement.where(Pursuit.last_client_interaction>=datetime.combine(interaction_from,datetime.min.time(),tzinfo=timezone.utc))
+        if interaction_to: statement=statement.where(Pursuit.last_client_interaction<datetime.combine(interaction_to+timedelta(days=1),datetime.min.time(),tzinfo=timezone.utc))
+        partner_exists=select(PartnerInvolvement.id).where(PartnerInvolvement.opportunity_id==Opportunity.id,PartnerInvolvement.tenant_id==user.tenant_id,PartnerInvolvement.is_deleted.is_(False)).exists()
+        if partner=="yes": statement=statement.where(partner_exists)
+        if partner=="no": statement=statement.where(~partner_exists)
+        today=date.today()
+        if close_period=="overdue": statement=statement.where(Opportunity.expected_close_date<today,Opportunity.stage.notin_(["won","lost"]))
+        if close_period=="this_month": start=today.replace(day=1); end=(start.replace(day=28)+timedelta(days=4)).replace(day=1)-timedelta(days=1); statement=statement.where(Opportunity.expected_close_date.between(start,end))
+        if close_period in {"this_quarter","next_quarter"}:
+            start=today.replace(month=((today.month-1)//3)*3+1,day=1); month=start.month+(3 if close_period=="next_quarter" else 0); start=start.replace(year=start.year+(month>12),month=((month-1)%12)+1); month=start.month+3; end=start.replace(year=start.year+(month>12),month=((month-1)%12)+1)-timedelta(days=1); statement=statement.where(Opportunity.expected_close_date.between(start,end))
+        if close_from: statement=statement.where(Opportunity.expected_close_date>=close_from)
+        if close_to: statement=statement.where(Opportunity.expected_close_date<=close_to)
+        if value_min is not None or value_max is not None:
+            if user.level not in MANAGEMENT:
+                assigned=select(TeamRole.id).where(TeamRole.pursuit_id==Pursuit.id,TeamRole.user_id==user.id,TeamRole.is_deleted.is_(False)).exists()
+                statement=statement.where(or_(Opportunity.restricted.is_(False),Pursuit.owner_id==user.id,Pursuit.sourced_by_id==user.id,Pursuit.holder_id==user.id,assigned))
+            if value_min is not None: statement=statement.where(Opportunity.value_usd>=value_min)
+            if value_max is not None: statement=statement.where(Opportunity.value_usd<=value_max)
+        columns = {"name": Pursuit.name, "action_date": Pursuit.action_date, "close_date": Opportunity.expected_close_date, "value": Opportunity.value_usd, "created": Pursuit.created_at, "updated": Pursuit.updated_at}
         order = columns.get(sort, Pursuit.updated_at); statement = statement.order_by(order.desc() if descending else order.asc(), Opportunity.id)
         total, items = paginated(db, statement, page, page_size); payload = [out.opportunity(db, item, user) for item in items]
     pages = max(1, (total + page_size - 1) // page_size)

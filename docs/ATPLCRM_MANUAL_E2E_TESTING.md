@@ -40,7 +40,7 @@ This handbook tests what exists in **v0.7**. The following items are planned or 
 | Documents | Secure HTTPS links only; file upload, Outlook/email linking, sharing register and version supersession are planned. |
 | Commercial | Stored currency/rate and value history work; rate refresh, re-baseline, full partner UI and complete close/handoff fields are pending. |
 | Pre-sales | Assignment, status, effort and approval-to-share gate work; contributor capacity, full review evidence and costing are pending. |
-| Reports | Current overview, pipeline, lead distribution, lifecycle report and forecast CSV work; historical funnels and advanced reports are pending. |
+| Reports | Current overview, pipeline, lead distribution, calendar-aware lifecycle and stage-movement reports and forecast CSV work; historical funnels and other advanced reports are pending. |
 | AI | No AI provider or simulated AI feature exists in v0.7. |
 | Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.7. |
 
@@ -422,9 +422,9 @@ As Maya, select **New lead** and enter a unique lead name, company, commercial o
 
 ### LEAD-02 — Lead board, list, filters and saved view
 
-Test Board/List, owner filter, text search, list status, priority, country, sort, pagination and a saved view.
+Test Board/List, owner, Ball in Court, text, status, priority, country, source, next-action date range, last-client-interaction range, sort/direction, pagination and a saved view containing advanced filters.
 
-**Expected:** counts and results agree; opening a result shows the same record; the saved view is personal and persistent.
+**Expected:** every filter combines correctly; saved views restore advanced filters; counts and results agree; opening a result shows the same record; the saved view is personal and persistent.
 **Actual/result:** ______________________________________________________________________
 
 ### LEAD-03 — Status progression
@@ -445,7 +445,7 @@ Select **Nurture**, choose a future revisit date, and save.
 
 Create a lead sourced/owned by Maya and make it Ready. Try disqualification as Maya, as Alex when Alex is made owner, and as an independent Manager/Executive.
 
-**Expected:** Standard/self-review attempts are refused; independent Manager/Executive can choose a configured reason; lead closes as Disqualified and remains traceable.
+**Expected:** the Ready-lead panel names eligible alternate validators; Standard/self-review attempts are refused and identify the alternate route; independent Manager/Executive can choose a configured reason; lead closes as Disqualified and remains traceable.
 **Actual/result:** ______________________________________________________________________
 
 ### LEAD-06 — Independent validation and conversion
@@ -475,9 +475,16 @@ Open the converted lead and try to change its status.
 
 ### OPP-01 — Board and list
 
-Test Board/List, owner filter, text search, status/stage, priority, country, sort, pagination, personal saved views and result opening.
+Test Board/List, owner, Ball in Court, text, stage, priority, country, source, service, blocker, partner involvement, next-action and last-interaction ranges, close presets/custom range, USD value range, sort/direction, pagination, saved views and result opening.
 
-**Expected:** board columns use configured stage labels/probabilities; hold is excluded; visible net USD totals are correct; list behavior matches the Lead list.
+**Expected:** advanced filters combine and persist in views; restricted values cannot be inferred through value filters; board columns use configured stage labels/probabilities; hold is excluded; visible net USD totals are correct; list behavior matches the Lead list.
+**Actual/result:** ______________________________________________________________________
+
+### OPP-01A — Edit qualified opportunity details
+
+Open an assigned opportunity, select **Edit opportunity**, and change its name, type, need, scope, primary contact, service, engagement type, close date and priority with a reason. Repeat from a stale second session and with a contact from another company through the API.
+
+**Expected:** valid fields update together and Timeline records the reason; a new same-company primary contact is retained as a stakeholder; stale versions conflict and cross-company contacts are refused.
 **Actual/result:** ______________________________________________________________________
 
 ### OPP-02 — Bulk assignment
@@ -737,6 +744,13 @@ For each of seven milestone tiles, verify record count, median working days, tar
 **Expected:** exactly seven tiles display; values reflect stored timestamps and weekday calculations; drill-through lists matching records.
 **Actual/result:** ______________________________________________________________________
 
+### RPT-04A — Historical pipeline movement
+
+As Manager/Executive/Administrator, select 30 days, 90 days, one year and all history. Compare common transitions, regression count, median time in the prior stage and current open-stage age with Timeline events. Try the endpoint as a Standard user.
+
+**Expected:** periods filter stage-change events; working-day values honor the workspace calendar; backward moves are counted as regressions; Standard access is refused.
+**Actual/result:** ______________________________________________________________________
+
 ### RPT-05 — Forecast detail
 
 Compare record, company, stage, owner, close, probability and net USD with opportunity details. Test value restrictions with different roles.
@@ -809,6 +823,13 @@ Edit label, sort order and availability; edit a stage probability. Deactivate an
 Update a non-USD rate and source, convert a new lead in that currency, then change the rate again.
 
 **Expected:** future conversion uses the latest rate; the existing opportunity/value history retains its original fixed rate. USD remains exactly 1 and cannot be changed. US deployment exposes USD only.
+**Actual/result:** ______________________________________________________________________
+
+### ADMIN-08A — Working calendar
+
+Configure Monday–Friday, then Sunday–Thursday, and add a known holiday. Recheck lifecycle and movement reports. Try the same API request as a non-admin.
+
+**Expected:** selected workdays and holidays persist, report durations exclude non-working dates, alerts use the same calendar, and non-admin updates are refused.
 **Actual/result:** ______________________________________________________________________
 
 ### ADMIN-09 — Integration readiness

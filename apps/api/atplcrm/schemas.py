@@ -112,6 +112,32 @@ class WorkInput(Input):
     next_meeting: date | None = None
     priority: str | None = Field(None, max_length=20)
 
+class OpportunityPatch(Input):
+    version: int = Field(ge=1)
+    reason: str = Field(min_length=1, max_length=250)
+    name: str | None = Field(None, min_length=1, max_length=180)
+    opportunity_type: Literal["New logo", "Expansion at existing client", "Renewal or extension"] | None = None
+    customer_need: str | None = Field(None, min_length=1)
+    scope_summary: str | None = Field(None, min_length=1)
+    primary_contact: UUID | None = None
+    service_line: str | None = None
+    engagement_type: Literal["Fixed price", "Time and materials", "Retainer or AMC", "Licence plus services", "Milestone"] | None = None
+    expected_close_date: date | None = None
+    priority: Literal["High", "Medium", "Low"] | None = None
+
+
+class WorkingCalendarInput(Input):
+    working_weekdays: list[int] = Field(min_length=1, max_length=7)
+    holidays: list[date] = Field(default_factory=list, max_length=366)
+
+    @model_validator(mode="after")
+    def valid_calendar(self):
+        if any(day < 0 or day > 6 for day in self.working_weekdays): raise ValueError("Working weekdays must use values 0 through 6.")
+        if len(set(self.working_weekdays)) != len(self.working_weekdays): raise ValueError("Working weekdays cannot contain duplicates.")
+        if len(set(self.holidays)) != len(self.holidays): raise ValueError("Holiday dates cannot contain duplicates.")
+        return self
+
+
 class StageInput(Input):
     stage: str
     version: int = Field(ge=1)

@@ -233,6 +233,13 @@ class CommercialSetting(RecordMixin, Base):
     fx_movement_notice_pct: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=5)
 
 
+class WorkingCalendar(RecordMixin, Base):
+    __tablename__ = "crm_workingcalendar"
+    __table_args__ = (UniqueConstraint("tenant_id", name="crm_workingcalendar_tenant_uniq"),)
+    working_weekdays: Mapped[list] = mapped_column(JSON, default=lambda: [0, 1, 2, 3, 4])
+    holidays: Mapped[list] = mapped_column(JSON, default=list)
+
+
 class WorkspaceReference(RecordMixin, Base):
     __tablename__ = "crm_workspacereference"
     __table_args__ = (UniqueConstraint("tenant_id", "category", "code", name="crm_reference_tenant_category_code_uniq"),)

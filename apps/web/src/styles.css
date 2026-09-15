@@ -3804,6 +3804,95 @@ td small {
 .report-row-button:hover {
   background: #f4f6f8;
 }
+.advanced-filter-panel {
+  margin: 0 18px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+.advanced-filter-panel summary {
+  padding: 12px 14px;
+  color: var(--navy);
+  cursor: pointer;
+  font-weight: 700;
+}
+.advanced-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+.advanced-filter-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.advanced-filter-grid input,
+.advanced-filter-grid select {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  padding: 7px 9px;
+  color: var(--ink);
+}
+.validation-route-note,
+.working-calendar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #ead185;
+  border-radius: 11px;
+  background: #fffbeb;
+  color: var(--navy);
+}
+.validation-route-note span,
+.working-calendar-row span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+.validation-route-note small,
+.working-calendar-row small {
+  color: var(--muted);
+}
+.working-calendar-row {
+  margin: 14px 0;
+}
+.movement-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 16px 0;
+}
+.movement-summary > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f5f7fa;
+}
+.movement-summary small,
+.movement-summary em {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-style: normal;
+}
+.movement-summary strong {
+  color: var(--navy);
+  font-size: 1.2rem;
+}
+.movement-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
 @media (max-width: 760px) {
   .commercial-summary {
     grid-template-columns: 1fr 1fr;
@@ -3814,5 +3903,12 @@ td small {
   .partner-row > span:nth-of-type(2),
   .partner-row .stakeholder-actions {
     grid-column: 2;
+  }
+  .advanced-filter-grid,
+  .movement-columns {
+    grid-template-columns: 1fr;
+  }
+  .movement-summary {
+    grid-template-columns: 1fr;
   }
 }

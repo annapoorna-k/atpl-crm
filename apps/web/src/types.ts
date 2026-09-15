@@ -110,6 +110,7 @@ export interface Pursuit {
   revisit_date?: string;
   stage?: string;
   opportunity_type?: string;
+  engagement_type?: string;
   customer_need?: string;
   scope_summary?: string;
   service_line?: string;
@@ -224,6 +225,10 @@ export interface Data {
     partner_share_warning_pct: string;
     fx_movement_notice_pct: string;
   };
+  working_calendar: {
+    working_weekdays: number[];
+    holidays: string[];
+  };
   companies: Company[];
   contacts: Contact[];
   leads: Pursuit[];
@@ -299,6 +304,43 @@ export interface MilestoneReport {
   median_working_days: number | null;
   target_working_days: number;
   healthy: boolean;
+}
+
+export interface ValidationRoute {
+  eligible: Person[];
+  current_user_can_validate: boolean;
+  reason: string;
+}
+
+export interface MovementReport {
+  period: string;
+  move_count: number;
+  regression_count: number;
+  transitions: {
+    from_label: string;
+    to_label: string;
+    count: number;
+    median_working_days: number;
+  }[];
+  current_stage_age: {
+    stage: string;
+    label: string;
+    count: number;
+    median_working_days: number;
+    oldest_working_days: number;
+  }[];
+  moves: {
+    pursuit_id: string;
+    pursuit: string;
+    company: string;
+    from_label: string;
+    to_label: string;
+    moved_at: string;
+    working_days_in_previous_stage: number;
+    evidence: string;
+    regression: boolean;
+  }[];
+  calendar: { working_weekdays: number[]; holiday_count: number };
 }
 
 export interface NotificationPreference {

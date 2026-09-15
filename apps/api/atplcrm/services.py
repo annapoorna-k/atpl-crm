@@ -117,7 +117,7 @@ def net_usd(db: Session, opportunity: Opportunity) -> Decimal | None:
     return commercial_totals(db, opportunity)["net_usd"]
 
 
-def flags(pursuit: Pursuit) -> list[str]:
+def flags(db: Session, pursuit: Pursuit) -> list[str]:
     now = datetime.now(timezone.utc)
     today = date.today()
     if pursuit.opportunity and pursuit.opportunity.stage in {"won", "lost"}:
@@ -136,8 +136,8 @@ def flags(pursuit: Pursuit) -> list[str]:
     if pursuit.opportunity and pursuit.opportunity.stage not in {"won", "lost", "hold"} and pursuit.opportunity.expected_close_date < today:
         result.append("Close date passed")
     if pursuit.lead and pursuit.lead.status == "ready" and pursuit.ready_at:
-        working_days = sum(1 for offset in range((today - pursuit.ready_at.date()).days) if (pursuit.ready_at.date() + timedelta(days=offset + 1)).weekday() < 5)
-        if working_days > 5:
+        from .calendar import tenant_calendar, working_days
+        if working_days(pursuit.ready_at, today, tenant_calendar(db, pursuit.tenant_id)) > 5:
             result.append("Validation overdue")
     return result
 

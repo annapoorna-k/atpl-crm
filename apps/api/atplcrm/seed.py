@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from pwdlib import PasswordHash
 from .constants import PROBABILITIES, REFERENCE_DEFAULTS, SERVICES, SOURCES
 from .database import engine
-from .models import Activity, CommercialSetting, Company, Contact, ExchangeRate, Lead, Opportunity, Pursuit, PursuitContact, TeamRole, Tenant, User, ValueHistory, WorkspaceReference
+from .models import Activity, CommercialSetting, Company, Contact, ExchangeRate, Lead, Opportunity, Pursuit, PursuitContact, TeamRole, Tenant, User, ValueHistory, WorkingCalendar, WorkspaceReference
 from .services import stamp
 from .settings import get_settings
 
@@ -17,6 +17,8 @@ def ensure_references(db: Session, tenant: Tenant, actor: User) -> None:
             if (category, code) not in existing: db.add(WorkspaceReference(**stamp(actor), category=category, code=code, label=label, numeric_value=numeric_value, sort_order=order * 10))
     if not db.scalar(select(CommercialSetting.id).where(CommercialSetting.tenant_id == tenant.id)):
         db.add(CommercialSetting(**stamp(actor), partner_share_warning_pct=Decimal("40"), fx_movement_notice_pct=Decimal("5")))
+    if not db.scalar(select(WorkingCalendar.id).where(WorkingCalendar.tenant_id == tenant.id)):
+        db.add(WorkingCalendar(**stamp(actor), working_weekdays=[0,1,2,3,4], holidays=[]))
 
 
 def seed() -> None:

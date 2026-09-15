@@ -1,4 +1,5 @@
 from conftest import login
+from urllib.parse import urlencode
 
 
 def test_paginated_lists_support_filters_and_sorting(client):
@@ -11,6 +12,35 @@ def test_paginated_lists_support_filters_and_sorting(client):
     assert opportunities.status_code == 200, opportunities.text
     assert opportunities.json()["total"] >= 1
     assert all(item["stage"] == "proposal" for item in opportunities.json()["items"])
+
+
+def test_opportunity_details_and_specialized_filters(client):
+    csrf = login(client)
+    data = client.get("/api/v1/bootstrap/").json()
+    opportunity = data["opportunities"][0]
+    changed = client.patch(
+        f'/api/v1/opportunities/{opportunity["opportunity_id"]}/',
+        json={
+            "version": opportunity["version"],
+            "customer_need": "Qualified need confirmed with the client",
+            "scope_summary": opportunity["scope_summary"] or "Initial delivery scope",
+            "reason": "Focused pipeline completion check",
+        },
+        headers={"X-CSRFToken": csrf},
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["customer_need"] == "Qualified need confirmed with the client"
+    params = urlencode({
+        "holder_id": changed.json()["holder_id"],
+        "source": changed.json()["source_channel"],
+        "service": changed.json()["service_line"],
+        "action_from": changed.json()["action_date"],
+        "action_to": changed.json()["action_date"],
+        "page_size": 10,
+    })
+    filtered = client.get(f"/api/v1/productivity/lists/opportunities/?{params}")
+    assert filtered.status_code == 200, filtered.text
+    assert any(item["id"] == opportunity["id"] for item in filtered.json()["items"])
 
 
 def test_personal_saved_views_are_private_and_editable(client):

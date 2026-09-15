@@ -22,7 +22,7 @@ This plan has two explicit views:
 | Area | Correct position |
 |---|---|
 | Product boundary | Independent ATPLCRM repository at `/Users/n22/Desktop/ATPLCRM`; no Orbit dependency |
-| Current release | v0.7 working core with synthetic local data; not yet production-ready or PRD-complete |
+| Current release | v0.11 working core with synthetic local data; lead/pipeline, commercial, company/contact/activity and import/data-quality phases complete locally |
 | Web application | React 19, TypeScript, Vite, custom responsive CSS, Lucide icons |
 | API | FastAPI 0.135, Pydantic, modular-monolith domain services |
 | Persistence | PostgreSQL 17, SQLAlchemy 2, Alembic migrations, decimal financial values |

@@ -1,4 +1,5 @@
-from datetime import date, datetime, timezone
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 from statistics import median
 from uuid import UUID
 
@@ -7,8 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .api import load_pursuit, tenant_user
+from .calendar import tenant_calendar, working_days
 from .database import get_db
-from .models import Pursuit, PursuitAction, User
+from .constants import MANAGEMENT, STAGES
+from .models import AuditEvent, Opportunity, Pursuit, PursuitAction, User
 from .presenters import MILESTONES, completed_action
 from .references import require_code
 from .schemas import ActionCompletionInput
@@ -27,12 +30,6 @@ MILESTONE_TARGETS = {
     "closed": 45,
 }
 
-
-def working_days(start: datetime, end: datetime) -> int:
-    start_date, end_date = utc(start).date(), utc(end).date()
-    if end_date <= start_date:
-        return 0
-    return sum(1 for offset in range((end_date - start_date).days) if (start_date.fromordinal(start_date.toordinal() + offset)).weekday() < 5)
 
 
 @router.post("/pursuits/{identifier}/actions/complete/")
@@ -77,6 +74,7 @@ def pursuit_actions(identifier: UUID, db: Session = Depends(get_db), user: User 
 @router.get("/milestones/")
 def milestone_report(db: Session = Depends(get_db), user: User = Depends(current_user)):
     pursuits = db.scalars(scoped(db, Pursuit, user)).all()
+    calendar = tenant_calendar(db, user.tenant_id)
     result = []
     for index, (key, label, attribute) in enumerate(MILESTONES):
         values = []
@@ -91,8 +89,25 @@ def milestone_report(db: Session = Depends(get_db), user: User = Depends(current
             else:
                 previous = getattr(pursuit, MILESTONES[index - 1][2])
                 if previous:
-                    values.append(working_days(previous, completed))
+                    values.append(working_days(previous, completed, calendar))
         elapsed = float(median(values)) if values else None
         target = MILESTONE_TARGETS[key]
         result.append({"key": key, "label": label, "count": count, "median_working_days": elapsed, "target_working_days": target, "healthy": elapsed is None or key == "lead_created" or elapsed < target})
     return result
+
+
+@router.get("/movement/")
+def movement_report(period: str="90d",db: Session=Depends(get_db),user: User=Depends(current_user)):
+    if user.level not in MANAGEMENT: raise http_error(403,"Management access is required for movement analysis.")
+    if period not in {"30d","90d","365d","all"}: raise http_error(422,{"period":"Choose 30d, 90d, 365d or all."})
+    cutoff=None if period=="all" else datetime.now(timezone.utc)-timedelta(days=int(period[:-1])); cal=tenant_calendar(db,user.tenant_id); labels=dict(STAGES); rank={x:i for i,x in enumerate(["discovery","presales","proposal","negotiation","contract","won","lost"])}
+    rows=db.execute(select(AuditEvent,Pursuit).join(Pursuit,Pursuit.id==AuditEvent.pursuit_id).where(AuditEvent.tenant_id==user.tenant_id,AuditEvent.action=="Stage changed",AuditEvent.is_deleted.is_(False)).options(selectinload(Pursuit.company)).order_by(AuditEvent.created_at)).all(); transitions=defaultdict(list); last={}; latest={}; moves=[]
+    for event,pursuit in rows:
+        a=str((event.before or {}).get("stage","")); b=str((event.after or {}).get("stage",""));
+        if not a or not b: continue
+        elapsed=working_days(last.get(pursuit.id) or pursuit.validated_at or pursuit.created_at,event.created_at,cal); last[pursuit.id]=event.created_at; latest[pursuit.id]=event.created_at
+        if cutoff and utc(event.created_at)<cutoff: continue
+        transitions[(a,b)].append(elapsed); backward=a in rank and b in rank and rank[b]<rank[a]; moves.append({"pursuit_id":str(pursuit.id),"pursuit":pursuit.name,"company":pursuit.company.name,"from_label":labels.get(a,a),"to_label":labels.get(b,b),"moved_at":event.created_at,"working_days_in_previous_stage":elapsed,"evidence":event.detail,"regression":backward})
+    ages=defaultdict(list); now=datetime.now(timezone.utc)
+    for item in db.scalars(scoped(db,Opportunity,user).where(Opportunity.stage.notin_(["won","lost"])).options(selectinload(Opportunity.pursuit))).all(): ages[item.stage].append(working_days(latest.get(item.pursuit_id) or item.pursuit.validated_at or item.pursuit.created_at,now,cal))
+    return {"period":period,"move_count":len(moves),"regression_count":sum(x["regression"] for x in moves),"transitions":[{"from_label":labels.get(a,a),"to_label":labels.get(b,b),"count":len(v),"median_working_days":float(median(v))} for (a,b),v in transitions.items()],"current_stage_age":[{"stage":a,"label":labels.get(a,a),"count":len(v),"median_working_days":float(median(v)),"oldest_working_days":max(v)} for a,v in ages.items()],"moves":list(reversed(moves[-100:])),"calendar":{"working_weekdays":cal.working_weekdays if cal else [0,1,2,3,4],"holiday_count":len(cal.holidays) if cal else 0}}

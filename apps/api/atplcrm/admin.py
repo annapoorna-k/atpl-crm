@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from . import presenters as out
 from .constants import LOCKED_REFERENCE_CATEGORIES, REFERENCE_DEFAULTS
 from .database import get_db
-from .models import AppSession, ExchangeRate, ExchangeRateHistory, User, WorkspaceReference
-from .schemas import AdminUserInput, AdminUserPatch, RatePatch, ReferenceInput, ReferencePatch
+from .models import AppSession, ExchangeRate, ExchangeRateHistory, User, WorkingCalendar, WorkspaceReference
+from .schemas import AdminUserInput, AdminUserPatch, RatePatch, ReferenceInput, ReferencePatch, WorkingCalendarInput
 from .security import current_user
 from .services import audit, get_scoped, http_error, stamp
 
@@ -72,3 +72,11 @@ def update_rate(identifier: UUID, payload: RatePatch, db: Session = Depends(get_
     db.add(ExchangeRateHistory(**stamp(admin), currency=item.currency, old_rate=old_rate, new_rate=payload.rate, source=payload.source, change_type="Manual override"))
     audit(db, admin, "Exchange rate updated", detail=item.currency, before=before, after={"rate": str(payload.rate), "source": payload.source}); db.commit(); db.refresh(item)
     return {"id": str(item.id), "currency": item.currency, "rate": str(item.rate), "source": item.source}
+
+
+@router.patch("/working-calendar/")
+def update_working_calendar(payload: WorkingCalendarInput, db: Session = Depends(get_db), admin: User = Depends(administrator)):
+    item=db.scalar(select(WorkingCalendar).where(WorkingCalendar.tenant_id==admin.tenant_id,WorkingCalendar.is_deleted.is_(False))); before={"working_weekdays":item.working_weekdays,"holidays":item.holidays} if item else {}; values={"working_weekdays":sorted(payload.working_weekdays),"holidays":sorted(v.isoformat() for v in payload.holidays)}
+    if item: item.working_weekdays,item.holidays,item.updated_by_id=values["working_weekdays"],values["holidays"],admin.id
+    else: item=WorkingCalendar(**stamp(admin),**values); db.add(item)
+    audit(db,admin,"Working calendar updated",detail=f"{len(values['working_weekdays'])} weekdays · {len(values['holidays'])} holidays",before=before,after=values); db.commit(); return values

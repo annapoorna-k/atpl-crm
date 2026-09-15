@@ -12,12 +12,12 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-18–19 | Import and duplicate resolution | Implemented | mapped CSV/Excel dry runs, full-field row validation, confirmed duplicate warnings, durable history, exact/fuzzy review, field-level merges and reviewed-distinct decisions |
 | FR-20 | Contact collision | Implemented | pre-save warning names the owner, last outbound touch and related pursuit; save remains permitted and creates a durable owner notification |
 | FR-21 | Universal search | Partial | tenant-scoped server search, type/owner/status/country filters and pagination implemented; ranked full-text indexes and saved recent searches remain |
-| FR-25–26 | Lead create/board/list/filters | Partial | server-paginated list and primary filters implemented; remaining specialized filters pending |
-| FR-27–29 | Independent validation, preserving conversion, nurture | Partial | atplcrm/services.py and api.py; explicit alternate routing and configurable calendars pending |
+| FR-25–26 | Lead create/board/list/filters | Implemented | separate lead board plus server-paginated status, owner, holder, source, priority, next-action and last-interaction filters |
+| FR-27–29 | Independent validation, preserving conversion, nurture | Implemented | explicit eligible-validator routing, self-validation refusal, history-preserving conversion, nurture revisits and tenant working calendars |
 | FR-30 | Bulk assignment | Implemented | productivity.py and RecordList.tsx |
 | FR-35–36 | Pipeline and stage changes | Implemented | drag-and-drop cards and accessible selector in App.tsx; evidence, locking, version conflicts and audit history in api.py |
-| FR-37–44 | Actions, blockers, engagement, scope, contacts, values, hold and milestones | Partial | atomic action completion/handoff, immutable history, automatic timestamps, seven milestones, stakeholder editing and primary-contact protection implemented; remaining specialized fields/configurable calendars pending |
-| FR-45–46 | Filters and opportunity page | Partial | paginated primary filters and core page implemented; specialized filters and partner/document modules pending |
+| FR-37–44 | Actions, blockers, engagement, scope, contacts, values, hold and milestones | Implemented | atomic action completion/handoff, immutable histories, editable qualified fields, derived interaction dates, contacts, hold handling, automatic timestamps and seven calendar-aware milestones |
+| FR-45–46 | Filters and opportunity page | Implemented | complete opportunity filters plus at-a-glance detail with editable need/scope/contact/service, team, contacts, partners, documents, pre-sales and timeline |
 | FR-47 | Probability override | Implemented | override retains comment and stored stage-default snapshot |
 | FR-48–50 | Won/lost/approval capture | Implemented | complete loss context/competitor fields and won contract, project, evidence, optional approval and handoff capture |
 | FR-51 | Saved views | Implemented | personal saved-view API and RecordList UI |

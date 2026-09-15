@@ -17,9 +17,23 @@ type Item = Company | Contact | Pursuit;
 type Filters = {
   q: string;
   owner_id: string;
+  holder_id: string;
   status: string;
   country: string;
+  source: string;
+  service: string;
   priority: string;
+  blocker: string;
+  partner: string;
+  action_from: string;
+  action_to: string;
+  interaction_from: string;
+  interaction_to: string;
+  close_period: string;
+  close_from: string;
+  close_to: string;
+  value_min: string;
+  value_max: string;
   sort: string;
   direction: string;
 };
@@ -40,9 +54,23 @@ type SavedView = {
 const emptyFilters: Filters = {
   q: "",
   owner_id: "",
+  holder_id: "",
   status: "",
   country: "",
+  source: "",
+  service: "",
   priority: "",
+  blocker: "",
+  partner: "",
+  action_from: "",
+  action_to: "",
+  interaction_from: "",
+  interaction_to: "",
+  close_period: "",
+  close_from: "",
+  close_to: "",
+  value_min: "",
+  value_max: "",
   sort: "updated",
   direction: "desc",
 };
@@ -316,7 +344,24 @@ export function RecordList({
             {entity === "opportunities" && (
               <option value="close_date">Expected close</option>
             )}
+            {pursuitList && (
+              <option value="last_interaction">Last client interaction</option>
+            )}
+            {entity === "opportunities" && (
+              <option value="value">Reporting value</option>
+            )}
             <option value="created">Created date</option>
+          </select>
+        </label>
+        <label>
+          <span>Direction</span>
+          <select
+            aria-label="List sort direction"
+            value={filters.direction}
+            onChange={(event) => change("direction", event.target.value)}
+          >
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
           </select>
         </label>
         <button
@@ -331,6 +376,163 @@ export function RecordList({
           <ListFilter size={15} /> Clear
         </button>
       </div>
+      {pursuitList && (
+        <details className="advanced-filter-panel">
+          <summary>More pipeline filters</summary>
+          <div className="advanced-filter-grid">
+            <label>
+              <span>Ball in Court</span>
+              <select
+                value={filters.holder_id}
+                onChange={(e) => change("holder_id", e.target.value)}
+              >
+                <option value="">All holders</option>
+                {data.users.map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Source</span>
+              <select
+                value={filters.source}
+                onChange={(e) => change("source", e.target.value)}
+              >
+                <option value="">All sources</option>
+                {data.reference.sources.map(([value, text]) => (
+                  <option key={value} value={value}>
+                    {text}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Next action from</span>
+              <input
+                type="date"
+                value={filters.action_from}
+                onChange={(e) => change("action_from", e.target.value)}
+              />
+            </label>
+            <label>
+              <span>Next action to</span>
+              <input
+                type="date"
+                value={filters.action_to}
+                onChange={(e) => change("action_to", e.target.value)}
+              />
+            </label>
+            <label>
+              <span>Last interaction from</span>
+              <input
+                type="date"
+                value={filters.interaction_from}
+                onChange={(e) => change("interaction_from", e.target.value)}
+              />
+            </label>
+            <label>
+              <span>Last interaction to</span>
+              <input
+                type="date"
+                value={filters.interaction_to}
+                onChange={(e) => change("interaction_to", e.target.value)}
+              />
+            </label>
+            {entity === "opportunities" && (
+              <>
+                <label>
+                  <span>Service</span>
+                  <select
+                    value={filters.service}
+                    onChange={(e) => change("service", e.target.value)}
+                  >
+                    <option value="">All services</option>
+                    {data.reference.services.map(([value, text]) => (
+                      <option key={value} value={value}>
+                        {text}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Blocker</span>
+                  <select
+                    value={filters.blocker}
+                    onChange={(e) => change("blocker", e.target.value)}
+                  >
+                    <option value="">All blockers</option>
+                    {data.reference.blockers.map(([value, text]) => (
+                      <option key={value} value={value}>
+                        {text}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Partner involvement</span>
+                  <select
+                    value={filters.partner}
+                    onChange={(e) => change("partner", e.target.value)}
+                  >
+                    <option value="">Any</option>
+                    <option value="yes">Has partner</option>
+                    <option value="no">No partner</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Close period</span>
+                  <select
+                    value={filters.close_period}
+                    onChange={(e) => change("close_period", e.target.value)}
+                  >
+                    <option value="">Any period</option>
+                    <option value="overdue">Passed close date</option>
+                    <option value="this_month">This month</option>
+                    <option value="this_quarter">This quarter</option>
+                    <option value="next_quarter">Next quarter</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Close from</span>
+                  <input
+                    type="date"
+                    value={filters.close_from}
+                    onChange={(e) => change("close_from", e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Close to</span>
+                  <input
+                    type="date"
+                    value={filters.close_to}
+                    onChange={(e) => change("close_to", e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Minimum value (USD)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={filters.value_min}
+                    onChange={(e) => change("value_min", e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Maximum value (USD)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={filters.value_max}
+                    onChange={(e) => change("value_max", e.target.value)}
+                  />
+                </label>
+              </>
+            )}
+          </div>
+        </details>
+      )}
       {canBulk && selected.length > 0 && (
         <div className="bulk-bar">
           <strong>{selected.length} selected</strong>

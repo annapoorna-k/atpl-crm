@@ -93,3 +93,25 @@ def test_report_tracks_exactly_seven_lifecycle_milestones(client):
     ]
     assert [row["target_working_days"] for row in rows] == [0, 3, 15, 5, 3, 20, 45]
     assert all("count" in row and "median_working_days" in row and "healthy" in row for row in rows)
+
+
+def test_admin_calendar_and_management_movement_report(client):
+    csrf = login(client, "admin@atplcrm.local")
+    holiday = str(date.today() + timedelta(days=10))
+    changed = client.patch(
+        "/api/v1/admin/working-calendar/",
+        json={"working_weekdays": [6, 0, 1, 2, 3], "holidays": [holiday]},
+        headers={"X-CSRFToken": csrf},
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json() == {"working_weekdays": [0, 1, 2, 3, 6], "holidays": [holiday]}
+    assert client.get("/api/v1/bootstrap/").json()["working_calendar"]["holidays"] == [holiday]
+    report = client.get("/api/v1/pipeline/movement/?period=90d")
+    assert report.status_code == 200, report.text
+    assert {"move_count", "regression_count", "transitions", "current_stage_age", "moves", "calendar"} <= report.json().keys()
+    restored = client.patch(
+        "/api/v1/admin/working-calendar/",
+        json={"working_weekdays": [0, 1, 2, 3, 4], "holidays": []},
+        headers={"X-CSRFToken": csrf},
+    )
+    assert restored.status_code == 200

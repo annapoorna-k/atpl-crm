@@ -59,6 +59,8 @@ import type {
   PartnerPerformanceReport,
   UndocumentedPartnerReport,
   ActivityPage,
+  MovementReport,
+  ValidationRoute,
 } from "./types";
 
 const money = (
@@ -448,6 +450,11 @@ export default function App() {
     [showLocalCurrency, setShowLocalCurrency] = useState(false),
     [draggedPursuit, setDraggedPursuit] = useState<Pursuit | null>(null),
     [milestoneReport, setMilestoneReport] = useState<MilestoneReport[]>([]),
+    [movementReport, setMovementReport] = useState<MovementReport | null>(null),
+    [movementPeriod, setMovementPeriod] = useState("90d"),
+    [validationRoute, setValidationRoute] = useState<ValidationRoute | null>(
+      null,
+    ),
     [workQueues, setWorkQueues] = useState<WorkQueues | null>(null),
     [notificationPreferences, setNotificationPreferences] =
       useState<NotificationPreference | null>(null),
@@ -524,11 +531,31 @@ export default function App() {
     }
   }, [selected, data]);
   useEffect(() => {
+    const lead = data?.leads.find((item) => item.id === selected);
+    if (!lead || lead.status !== "ready") {
+      setValidationRoute(null);
+      return;
+    }
+    api<ValidationRoute>(`leads/${lead.lead_id}/validators/`)
+      .then(setValidationRoute)
+      .catch((e) => setToast((e as Error).message));
+  }, [selected, data]);
+  useEffect(() => {
     if (session && page === "reports")
       api<MilestoneReport[]>("pipeline/milestones/")
         .then(setMilestoneReport)
         .catch((e) => setToast(e.message));
   }, [page, session, data]);
+  useEffect(() => {
+    if (
+      session &&
+      page === "reports" &&
+      ["Administrator", "Manager", "Executive"].includes(session.level)
+    )
+      api<MovementReport>(`pipeline/movement/?period=${movementPeriod}`)
+        .then(setMovementReport)
+        .catch((e) => setToast((e as Error).message));
+  }, [page, session, data, movementPeriod]);
   useEffect(() => {
     if (session && ["work", "attention"].includes(page)) {
       setWorkQueues(null);
@@ -1621,6 +1648,99 @@ export default function App() {
         }),
       ],
       submit: (v) => api("commercial/settings/", "PATCH", v),
+    });
+  }
+  function workingCalendarForm() {
+    setForm({
+      title: "Working calendar",
+      description:
+        "Milestone timing and validation alerts use these workdays and holidays.",
+      fields: [
+        field("working_weekdays", "Working week", {
+          options: [
+            ["0,1,2,3,4", "Monday to Friday"],
+            ["6,0,1,2,3", "Sunday to Thursday"],
+            ["0,1,2,3,4,5", "Monday to Saturday"],
+            ["0,1,2,3,4,5,6", "Every day"],
+          ],
+          value: d.working_calendar.working_weekdays.join(","),
+        }),
+        field("holidays", "Holidays (YYYY-MM-DD, comma separated)", {
+          required: false,
+          value: d.working_calendar.holidays.join(", "),
+          hint: "These dates are excluded from working-day measurements.",
+        }),
+      ],
+      submit: (v) =>
+        api("admin/working-calendar/", "PATCH", {
+          working_weekdays: v.working_weekdays.split(",").map(Number),
+          holidays: v.holidays
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+        }),
+      label: "Save calendar",
+    });
+  }
+  function opportunityForm(r: Pursuit) {
+    setForm({
+      title: "Edit opportunity",
+      description:
+        "Update the qualified need, scope, primary contact and delivery details.",
+      fields: [
+        field("name", "Opportunity name", { value: r.name }),
+        field("opportunity_type", "Opportunity type", {
+          options: options([
+            "New logo",
+            "Expansion at existing client",
+            "Renewal or extension",
+          ]),
+          value: r.opportunity_type,
+        }),
+        field("customer_need", "Customer need", {
+          type: "textarea",
+          value: r.customer_need,
+        }),
+        field("scope_summary", "Scope summary", {
+          type: "textarea",
+          value: r.scope_summary,
+        }),
+        field("primary_contact", "Primary contact", {
+          options: d.contacts
+            .filter((contact) => contact.company_id === r.company_id)
+            .map((contact) => [contact.id, contact.name]),
+          value: r.primary_contact_id,
+        }),
+        field("service_line", "Service line", {
+          options: options(d.reference.services),
+          value: r.service_line,
+        }),
+        field("engagement_type", "Engagement type", {
+          options: options([
+            "Fixed price",
+            "Time and materials",
+            "Retainer or AMC",
+            "Licence plus services",
+            "Milestone",
+          ]),
+          value: r.engagement_type,
+        }),
+        field("expected_close_date", "Expected signature date", {
+          type: "date",
+          value: r.expected_close_date,
+        }),
+        field("priority", "Priority", {
+          options: options(["High", "Medium", "Low"]),
+          value: r.priority,
+        }),
+        field("reason", "Reason for update", { type: "textarea" }),
+      ],
+      submit: (v) =>
+        api(`opportunities/${r.opportunity_id}/`, "PATCH", {
+          ...v,
+          version: r.version,
+        }),
+      label: "Save opportunity",
     });
   }
   function rebaselineOpenRates() {
@@ -2990,6 +3110,98 @@ export default function App() {
                   ))}
                 </div>
               </section>
+              {["Administrator", "Manager", "Executive"].includes(
+                d.user.level,
+              ) &&
+                movementReport && (
+                  <section className="panel movement-report-panel">
+                    <div className="panel-heading">
+                      <div>
+                        <h2>Historical pipeline movement</h2>
+                        <p>
+                          Stage transitions and current stage age in configured
+                          working days.
+                        </p>
+                      </div>
+                      <select
+                        aria-label="Movement analysis period"
+                        value={movementPeriod}
+                        onChange={(event) =>
+                          setMovementPeriod(event.target.value)
+                        }
+                      >
+                        <option value="30d">Last 30 days</option>
+                        <option value="90d">Last 90 days</option>
+                        <option value="365d">Last year</option>
+                        <option value="all">All history</option>
+                      </select>
+                    </div>
+                    <div className="movement-summary">
+                      <span>
+                        <small>STAGE MOVES</small>
+                        <strong>{movementReport.move_count}</strong>
+                      </span>
+                      <span>
+                        <small>REGRESSIONS</small>
+                        <strong>{movementReport.regression_count}</strong>
+                      </span>
+                      <span>
+                        <small>CALENDAR</small>
+                        <strong>
+                          {movementReport.calendar.working_weekdays.length}{" "}
+                          workdays
+                        </strong>
+                        <em>
+                          {movementReport.calendar.holiday_count} holidays
+                        </em>
+                      </span>
+                    </div>
+                    <div className="movement-columns">
+                      <div>
+                        <h3>Common transitions</h3>
+                        {movementReport.transitions.length ? (
+                          movementReport.transitions.map((row) => (
+                            <div
+                              className="report-row"
+                              key={`${row.from_label}-${row.to_label}`}
+                            >
+                              <span>
+                                <strong>
+                                  {row.from_label} → {row.to_label}
+                                </strong>
+                                <small>
+                                  {row.count} move{row.count === 1 ? "" : "s"}
+                                </small>
+                              </span>
+                              <Badge>
+                                {row.median_working_days} median days
+                              </Badge>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="settings-note">
+                            No stage changes in this period.
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <h3>Open stage age</h3>
+                        {movementReport.current_stage_age.map((row) => (
+                          <div className="report-row" key={row.stage}>
+                            <span>
+                              <strong>{row.label}</strong>
+                              <small>
+                                {row.count} active · oldest{" "}
+                                {row.oldest_working_days} days
+                              </small>
+                            </span>
+                            <Badge>{row.median_working_days} median days</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                )}
               <section className="panel">
                 <div className="panel-heading">
                   <div>
@@ -3207,6 +3419,24 @@ export default function App() {
                   <div className="settings-note">
                     Rates are copied onto a deal at conversion. These seeded
                     rates are examples, not current market quotes.
+                  </div>
+                  <div className="working-calendar-row">
+                    <CalendarDays size={20} />
+                    <span>
+                      <strong>Working calendar</strong>
+                      <small>
+                        {d.working_calendar.working_weekdays.length} working
+                        days · {d.working_calendar.holidays.length} holidays
+                      </small>
+                    </span>
+                    {d.user.level === "Administrator" && (
+                      <button
+                        className="text-button"
+                        onClick={workingCalendarForm}
+                      >
+                        Configure
+                      </button>
+                    )}
                   </div>
                   {d.reference.currencies.map((r) => (
                     <div className="rate-row" key={r.currency}>
@@ -3558,6 +3788,14 @@ export default function App() {
                 </Badge>
                 {p.can_work && (
                   <>
+                    {p.opportunity_id && (
+                      <button
+                        className="button secondary"
+                        onClick={() => opportunityForm(p)}
+                      >
+                        Edit opportunity
+                      </button>
+                    )}
                     <button
                       className="button secondary"
                       onClick={() => activityForm(p)}
@@ -3584,7 +3822,7 @@ export default function App() {
                 )}
                 {!p.opportunity_id &&
                   p.status === "ready" &&
-                  ["Manager", "Executive"].includes(d.user.level) && (
+                  validationRoute?.current_user_can_validate && (
                     <button
                       className="button yellow"
                       onClick={() => convertForm(p)}
@@ -3593,6 +3831,18 @@ export default function App() {
                     </button>
                   )}
               </div>
+              {!p.opportunity_id && p.status === "ready" && validationRoute && (
+                <div className="validation-route-note">
+                  <ShieldCheck size={18} />
+                  <span>
+                    <strong>Independent validation route</strong>
+                    {validationRoute.current_user_can_validate
+                      ? " You are eligible to decide this lead."
+                      : ` Send this lead to ${validationRoute.eligible.map((person) => person.name).join(", ") || "an eligible Manager or Executive"}.`}
+                    <small>{validationRoute.reason}</small>
+                  </span>
+                </div>
+              )}
               <div className="at-glance">
                 <div>
                   <small>COMMERCIAL OWNER</small>
@@ -3746,7 +3996,7 @@ export default function App() {
                           >
                             Move to nurture
                           </button>
-                          {["Manager", "Executive"].includes(d.user.level) && (
+                          {validationRoute?.current_user_can_validate && (
                             <button
                               className="button secondary"
                               onClick={() =>

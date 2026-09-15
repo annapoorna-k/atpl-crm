@@ -12,7 +12,7 @@ from . import presenters as out
 from .api import user_options
 from .database import get_db
 from .models import AutomationRun, Notification, NotificationPreference, Opportunity, PreSalesRequest, Pursuit, User
-from .pipeline import working_days
+from .calendar import tenant_calendar, working_days
 from .schemas import NotificationPreferenceInput
 from .security import current_user
 from .services import http_error, scoped, stamp, utc
@@ -98,6 +98,7 @@ def refresh_for_tenant(db: Session, tenant_id: UUID) -> int:
     presales_heads = title_heads(users, "head of presales")
     today = date.today()
     now = datetime.now(timezone.utc)
+    calendar = tenant_calendar(db, tenant_id)
     created = 0
 
     for pursuit in pursuits:
@@ -135,7 +136,7 @@ def refresh_for_tenant(db: Session, tenant_id: UUID) -> int:
             for recipient in recipients:
                 if no_followup and proposal_days >= preference(db, recipient).proposal_followup_days:
                     created += emit(db, system_user, recipient, "proposal_followup", f"Proposal has no recorded follow-up: {pursuit.name}", stable_key("proposal_followup", str(pursuit.id), pursuit.proposal_sent_at.date()), pursuit=pursuit, severity="high")
-        if pursuit.lead and pursuit.lead.status == "ready" and pursuit.ready_at and working_days(pursuit.ready_at, now) > 5:
+        if pursuit.lead and pursuit.lead.status == "ready" and pursuit.ready_at and working_days(pursuit.ready_at, now, calendar) > 5:
             for recipient in sales_heads:
                 created += emit(db, system_user, recipient, "validation", f"Lead awaiting validation over 5 working days: {pursuit.name}", stable_key("validation", str(pursuit.id), pursuit.ready_at.date()), pursuit=pursuit, severity="high")
         if pursuit.opportunity and pursuit.opportunity.expected_close_date <= today + timedelta(days=owner_prefs.close_notice_days):
@@ -202,7 +203,7 @@ def work_queues(db: Session = Depends(get_db), user: User = Depends(current_user
         if pursuit.blocker != "None" and pursuit.blocked_since and (now - utc(pursuit.blocked_since)).days > 10: candidates.append(("blocker", f"Blocker unresolved {(now - utc(pursuit.blocked_since)).days} days", "high"))
         if (now - utc(pursuit.last_client_interaction or pursuit.created_at)).days >= 21: candidates.append(("inactive", "No client interaction for 21 days", "medium"))
         if pursuit.opportunity and pursuit.opportunity.expected_close_date < today: candidates.append(("expired_close", "Expected close date passed", "high"))
-        if pursuit.lead and pursuit.lead.status == "ready" and pursuit.ready_at and working_days(pursuit.ready_at, now) > 5: candidates.append(("validation", "Validation overdue", "high"))
+        if pursuit.lead and pursuit.lead.status == "ready" and pursuit.ready_at and working_days(pursuit.ready_at, now, calendar) > 5: candidates.append(("validation", "Validation overdue", "high"))
         issues.extend({"key": f"{kind}:{pursuit.id}", "kind": kind, "label": label, "severity": severity, "pursuit": presented, "request": None} for kind, label, severity in candidates)
     for request in requests:
         if request.status not in TERMINAL_REQUEST_STATUSES and request.needed_by < today:

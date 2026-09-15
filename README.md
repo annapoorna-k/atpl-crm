@@ -14,16 +14,16 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.10, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.11, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
 - Branded responsive overview, My Work, Needs Attention, lead/opportunity boards and lists, company/contact detail, pre-sales queue, basic reports and read-only configuration overview.
-- Complete company and contact editing, including relationship ownership, source attribution, consent, prescribed engagement status, communication details and do-not-contact control; lead creation, status changes, independent validation, nurture/disqualification and idempotent conversion.
+- Editable qualified opportunity details and complete company/contact editing, including relationship ownership, source attribution, consent, prescribed engagement status, communication details and do-not-contact control; lead creation, status changes, independent validation, nurture/disqualification and idempotent conversion.
 - Shared pursuit context preserves the original lead, source, contacts, team and timeline while keeping Lead and Opportunity separate objects and board populations.
 - Ball in Court, atomic action completion and future handoff, immutable completed-action history, blocker owner/resolution, optimistic concurrency, stale/overdue flags and client-only interaction tracking.
 - Drag-and-drop and accessible-select opportunity stage changes with evidence prompts, row locking and version-conflict protection; required pre-sales roles; won/lost/hold validation; probability overrides; restricted commercial values and append-only value history.
-- Seven-milestone lifecycle tracking on every pursuit, plus count, median working-day and health-target reporting.
+- Seven-milestone lifecycle tracking on every pursuit, plus configurable working calendars, count, median working-day health targets, and historical stage-movement analysis.
 - Server-backed My Work queues for overdue, today and upcoming actions, blockers owned by the user, and assigned pre-sales deliverables.
 - Needs Attention exception queue for overdue or missing actions, long-held pursuits, aged blockers, client inactivity, expired close dates, delayed validation and overdue deliverables.
 - Per-user notification preferences and thresholds, durable in-app delivery history, escalation routing, 15-minute exception scans, Monday leadership summaries, and automation run/failure monitoring.
@@ -32,7 +32,7 @@ This is **v0.10, an initial working core**, using synthetic data and local passw
 - Team assignments, pre-sales request creation/status updates, secure document-link registration and periodic attention/revisit notifications.
 - Administrator-managed local users, access levels, activation and password resets, plus configurable workflow labels, stage probabilities and exchange rates.
 - Tenant-scoped global search; mapped CSV and Excel dry runs/imports for companies, full contacts and leads; downloadable templates/error reports; import warnings and durable history; exact/fuzzy duplicate review with field-by-field merge or dismissal; and a filtered, exportable data-quality dashboard.
-- Server-paginated company, contact, lead and opportunity lists with search, owner, workflow, priority, country and sort controls; reusable personal saved views; manager-only bulk owner/Ball-in-Court assignment with audit and concurrent-edit protection.
+- Server-paginated company, contact, lead and opportunity lists with complete source, responsibility, activity, blocker, partner, service, close-period and value filters; reusable personal saved views; manager-only bulk owner/Ball-in-Court assignment with audit and concurrent-edit protection.
 - Editable opportunity stakeholders with company-bound contact selection, relationship roles, and protection against removing the active primary contact.
 - Net USD pipeline and weighted totals, lead status distribution, CSV forecast export with spreadsheet-injection escaping.
 - Commercial management for multiple partners, contract/gross-margin/fixed/commission/spread terms, evidence status, share warnings, net local/USD values and partner performance/undocumented-term reporting.
