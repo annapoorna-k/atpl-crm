@@ -38,9 +38,11 @@ import {
   ExternalLink,
   CheckCircle2,
   Database,
+  FolderKanban,
 } from "lucide-react";
 import { api } from "./api";
 import { DataTools } from "./DataTools";
+import { DocumentCenter } from "./DocumentCenter";
 import { RecordList } from "./RecordList";
 import type {
   Company,
@@ -118,6 +120,7 @@ const nav = [
       ["pipeline", "Opportunities", KanbanSquare],
       ["companies", "Companies", Building2],
       ["contacts", "Contacts", Users],
+      ["documents", "Documents", FolderKanban],
     ],
   },
   {
@@ -1250,8 +1253,18 @@ export default function App() {
       },
     });
   }
-  function changeStage(r: Pursuit, target: string) {
+  async function changeStage(r: Pursuit, target: string) {
     if (target === r.stage) return;
+    let artifactWarning = "";
+    if (target === "proposal") {
+      try {
+        const artifacts = await api<Timeline["artifacts"]>(`artifacts/?pursuit_id=${r.id}`);
+        if (!artifacts.length) artifactWarning = "No artifact is registered on this pursuit yet. You may continue, then register what was sent in Documents.";
+      } catch (reason) {
+        setToast((reason as Error).message);
+        return;
+      }
+    }
     const fields: Field[] = [
       field("reason", "Stage change evidence", {
         type: "textarea",
@@ -1310,11 +1323,11 @@ export default function App() {
         field("final_evidence_artifact_id", "Final contract evidence", {
           options: (timeline?.artifacts ?? [])
             .filter((artifact) =>
-              ["Contract", "Purchase order", "SOW"].includes(artifact.type),
+              ["Contract", "Purchase order", "SOW"].includes(artifact.artifact_type),
             )
             .map((artifact) => [
               artifact.id,
-              `${artifact.title} · ${artifact.type}`,
+              `${artifact.title} · ${artifact.artifact_type}`,
             ]),
           hint: "Register a Contract, Purchase order or SOW in Documents first.",
         }),
@@ -1346,6 +1359,7 @@ export default function App() {
           ? "Register final contract, PO or SOW evidence before closing."
           : "The movement and its evidence will be retained in the audit timeline.",
       fields,
+      notice: () => artifactWarning,
       submit: (v) =>
         api(`opportunities/${r.opportunity_id}/stage/`, "POST", {
           ...v,
@@ -1572,6 +1586,14 @@ export default function App() {
                   value: current.actual_days ?? "",
                   hint: "Required when the assigned tech lead marks the work Delivered.",
                 }),
+                field("shared_with_contact_ids", "Delivered to", {
+                  options: d.contacts
+                    .filter((contact) => contact.company_id === d.opportunities.find((opportunity) => opportunity.opportunity_id === current.opportunity_id)?.company_id)
+                    .map((contact) => [contact.id, `${contact.name} · ${contact.email}`]),
+                  required: false,
+                  multiple: true,
+                  hint: "Required when marking Delivered; these contacts are written to the client-shared register.",
+                }),
                 field("blocked_reason", "Blocked reason", {
                   type: "textarea",
                   required: false,
@@ -1599,6 +1621,10 @@ export default function App() {
                     .split(",")
                     .filter(Boolean)
                     .map(Number)
+                : undefined,
+            shared_with_contact_ids:
+              "shared_with_contact_ids" in v
+                ? v.shared_with_contact_ids.split(",").filter(Boolean)
                 : undefined,
             ...("deliverable_artifact_id" in v
               ? { deliverable_artifact_id: v.deliverable_artifact_id || null }
@@ -2264,7 +2290,7 @@ export default function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="workspace-health">
-            <span className="live-dot" /> Local workspace <Badge>v0.7</Badge>
+            <span className="live-dot" /> Local workspace <Badge>v0.13</Badge>
           </div>
           <button className="profile" onClick={() => go("settings")}>
             <Avatar name={d.user.name} />
@@ -2425,6 +2451,8 @@ export default function App() {
                         "The organizations behind your next great partnership.",
                       contacts:
                         "A shared memory for every client relationship.",
+                      documents:
+                        "Register every file, link and email the client receives.",
                       presales:
                         "Purposeful deliverables. Clear ownership. On-time outcomes.",
                       reports: "Turn your pipeline into a clearer picture.",
@@ -2463,7 +2491,7 @@ export default function App() {
                     New lead
                   </button>
                 </>
-              ) : page === "data" ? null : (
+              ) : ["data", "documents"].includes(page) ? null : (
                 <button
                   className="button primary"
                   onClick={
@@ -3081,6 +3109,9 @@ export default function App() {
               onChanged={() => void load()}
               onOpen={(item) => setContactId((item as Contact).id)}
             />
+          )}
+          {page === "documents" && (
+            <DocumentCenter data={d} onChanged={() => void load()} />
           )}
           {page === "presales" && (
             <>
@@ -4620,64 +4651,27 @@ export default function App() {
                       <div>
                         <h3>Evidence register</h3>
                         <p>
-                          Secure document links. Uploads and Outlook linking are
-                          planned.
+                          Files, Microsoft 365 links and selected emails, with
+                          approval, versions and named client recipients.
                         </p>
                       </div>
                       {p.can_work && (
                         <button
                           className="button secondary"
-                          onClick={() =>
-                            setForm({
-                              title: "Register document evidence",
-                              fields: [
-                                field("title", "Document title"),
-                                field("artifact_type", "Type", {
-                                  options: options([
-                                    "Deck",
-                                    "Proposal",
-                                    "Pricing",
-                                    "NDA",
-                                    "SOW",
-                                    "Contract",
-                                    "Purchase order",
-                                    "Customer document",
-                                    "Other",
-                                  ]),
-                                  value: "Proposal",
-                                }),
-                                field("storage_link", "Secure document URL", {
-                                  type: "url",
-                                }),
-                                field("version", "Version", {
-                                  type: "number",
-                                  value: "1",
-                                }),
-                                field("internal_only", "Visibility", {
-                                  options: [
-                                    ["false", "Pursuit document"],
-                                    ["true", "Internal team only"],
-                                  ],
-                                  value: "false",
-                                }),
-                              ],
-                              submit: (v) =>
-                                api("artifacts/", "POST", {
-                                  ...v,
-                                  pursuit: p.id,
-                                }),
-                            })
-                          }
+                          onClick={() => {
+                            closeDetail();
+                            go("documents");
+                          }}
                         >
-                          <Plus size={14} />
-                          Add link
+                          <FolderKanban size={14} />
+                          Open document center
                         </button>
                       )}
                     </div>
                     {timeline?.artifacts.length ? (
                       timeline.artifacts.map((a) => (
                         <a
-                          className="document-row"
+                          className={`document-row ${a.superseded ? "superseded" : ""}`}
                           href={a.url}
                           target="_blank"
                           rel="noreferrer"
@@ -4687,7 +4681,11 @@ export default function App() {
                           <span>
                             <strong>{a.title}</strong>
                             <small>
-                              {a.type} · Version {a.version}
+                              {a.artifact_type} · {a.kind} · Version {a.version}
+                              {a.superseded ? " · Superseded" : ""}
+                              {a.shared_with_client
+                                ? ` · Shared with ${a.recipients.map((person) => person.name).join(", ")}`
+                                : ""}
                             </small>
                           </span>
                           <ExternalLink size={16} />

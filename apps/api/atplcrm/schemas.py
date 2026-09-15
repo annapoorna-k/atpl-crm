@@ -312,14 +312,40 @@ class RequestPatch(Input):
     blocked_reason: str = ""
     deliverable_artifact_id: UUID | None = None
     review_note: str = ""
+    shared_with_contact_ids: list[UUID] | None = None
 
 
 class ArtifactInput(Input):
     pursuit: UUID
     title: str = Field(min_length=1, max_length=180)
-    artifact_type: str = Field("Proposal", max_length=50)
+    artifact_type: Literal["Deck", "Proposal", "Case study", "Video", "Demo / POC output", "Technical architecture", "Pricing", "NDA", "SOW", "Contract", "Purchase order", "Customer document", "Email", "Other"] = "Proposal"
     storage_link: HttpUrl
-    version: int = Field(1, ge=1)
+    internal_only: bool = False
+    is_reusable: bool = False
+
+
+class ArtifactShareInput(Input):
+    contact_ids: list[UUID] = Field(min_length=1)
+    shared_at: datetime | None = None
+
+
+class ArtifactLibraryInput(Input):
+    enabled: bool = True
+
+
+class ArtifactReuseInput(Input):
+    pursuit: UUID
+    title: str | None = Field(None, min_length=1, max_length=180)
+
+
+class EmailLinkInput(Input):
+    pursuit: UUID
+    subject: str = Field(min_length=1, max_length=250)
+    message_reference: str = Field(min_length=1, max_length=500)
+    email_date: datetime
+    direction: Literal["Inbound", "Outbound"]
+    participants: list[EmailStr] = Field(min_length=1)
+    classification: Literal["Customer communication", "Internal approval", "Proposal sent", "Technical information", "Other"]
     internal_only: bool = False
 
 

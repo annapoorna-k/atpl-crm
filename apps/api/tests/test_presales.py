@@ -57,7 +57,7 @@ def test_complete_presales_assignment_review_delivery_capacity_and_cost(client):
     request = progressed.json()
     artifact = client.post(
         "/api/v1/artifacts/",
-        json={"pursuit": request["pursuit_id"], "title": "Architecture review v1", "artifact_type": "Technical architecture", "storage_link": "https://example.com/architecture", "version": 1, "internal_only": False},
+        json={"pursuit": request["pursuit_id"], "title": "Architecture review v1", "artifact_type": "Technical architecture", "storage_link": "https://example.com/architecture", "internal_only": False},
         headers={"X-CSRFToken": csrf},
     )
     assert artifact.status_code == 201, artifact.text
@@ -82,7 +82,7 @@ def test_complete_presales_assignment_review_delivery_capacity_and_cost(client):
     csrf = relogin(client, "omar@atplcrm.local")
     delivered = client.patch(
         f'/api/v1/requests/{request["id"]}/',
-        json={"version": request["version"], "status": "Delivered", "actual_days": "2.0"},
+        json={"version": request["version"], "status": "Delivered", "actual_days": "2.0", "shared_with_contact_ids": [opportunity["primary_contact_id"]]},
         headers={"X-CSRFToken": csrf},
     )
     assert delivered.status_code == 200, delivered.text

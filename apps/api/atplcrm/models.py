@@ -396,14 +396,45 @@ class PartnerInvolvement(RecordMixin, Base):
 class Artifact(RecordMixin, Base):
     __tablename__ = "crm_artifact"
     pursuit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_pursuit.id", ondelete="RESTRICT"))
+    company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_company.id", ondelete="RESTRICT"), index=True)
     title: Mapped[str] = mapped_column(String(180))
     artifact_type: Mapped[str] = mapped_column(String(50), default="Proposal")
     kind: Mapped[str] = mapped_column(String(40), default="SharePoint / OneDrive link")
-    storage_link: Mapped[str] = mapped_column(String(1000))
+    storage_link: Mapped[str] = mapped_column(String(1000), default="")
+    storage_key: Mapped[str] = mapped_column(String(500), default="")
+    original_filename: Mapped[str] = mapped_column(String(255), default="")
+    content_type: Mapped[str] = mapped_column(String(150), default="")
+    byte_size: Mapped[int] = mapped_column(BigInteger, default=0)
+    checksum_sha256: Mapped[str] = mapped_column(String(64), default="")
     version: Mapped[int] = mapped_column(Integer, default=1)
+    supersedes_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_artifact.id", ondelete="RESTRICT"), nullable=True, index=True)
+    source_artifact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_artifact.id", ondelete="RESTRICT"), nullable=True)
+    parent_email_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_artifact.id", ondelete="RESTRICT"), nullable=True, index=True)
+    email_classification: Mapped[str] = mapped_column(String(50), default="")
+    message_reference: Mapped[str] = mapped_column(String(500), default="")
+    email_subject: Mapped[str] = mapped_column(String(250), default="")
+    email_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_direction: Mapped[str] = mapped_column(String(20), default="")
+    email_participants: Mapped[list] = mapped_column(JSON, default=list)
     internal_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_reusable: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    shared_with_client: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     shared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    pursuit: Mapped[Pursuit] = relationship(foreign_keys=[pursuit_id])
+    company: Mapped[Company] = relationship(foreign_keys=[company_id])
+    approved_by: Mapped[User | None] = relationship(foreign_keys=[approved_by_id])
+    recipients: Mapped[list[ArtifactRecipient]] = relationship(back_populates="artifact", cascade="all, delete-orphan")
+
+
+class ArtifactRecipient(RecordMixin, Base):
+    __tablename__ = "crm_artifactrecipient"
+    __table_args__ = (UniqueConstraint("artifact_id", "contact_id", name="crm_artifactrecipient_artifact_contact_uniq"),)
+    artifact_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_artifact.id", ondelete="CASCADE"), index=True)
+    contact_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_contact.id", ondelete="RESTRICT"), index=True)
+    artifact: Mapped[Artifact] = relationship(back_populates="recipients")
+    contact: Mapped[Contact] = relationship()
 
 
 class AuditEvent(RecordMixin, Base):

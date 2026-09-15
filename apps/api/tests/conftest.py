@@ -8,6 +8,7 @@ os.environ.update(
     DATABASE_URL="sqlite+pysqlite:////tmp/atplcrm-pytest.db",
     POSTGRES_PASSWORD="unused",
     DEMO_PASSWORD="ChangeMe1234",
+    ARTIFACT_STORAGE_ROOT="/tmp/atplcrm-pytest-artifacts",
 )
 
 import pytest

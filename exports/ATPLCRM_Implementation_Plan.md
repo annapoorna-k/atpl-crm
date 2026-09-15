@@ -321,7 +321,7 @@ Settings are typed and validated at startup. Environment files contain local val
 | Import/data quality | Excel, background imports over current CSV limit, fuzzy matching, field-level merges and fuller collision context |
 | Pipeline | Specialized filters, configurable working calendars and deeper historical movement analysis |
 | Commercial | Complete partner agreement fields/evidence/calculations, FX update/rebaseline, probability snapshot rules, won/lost/handoff and approval evidence |
-| Documents | Managed upload/storage, Outlook add-in, mail/attachment linking, sharing approval/register, recipients/date, versions and reusable library |
+| Documents | Local managed uploads, links, mail/attachment registration, approval/register, versions and reusable library complete; Azure Blob/Graph activation and Outlook tenant deployment remain |
 | Pre-sales | Full transitions, review gate/evidence, contributors, individual weekly capacity and cost analytics |
 | Reports | Time filters, historical funnel, losses, blockers, erosion, partner/movement/performance, server exports, Excel and configuration parity |
 | Search/scale | PostgreSQL full-text indexes/ranking, recent search history, cache strategy and documented performance acceptance |

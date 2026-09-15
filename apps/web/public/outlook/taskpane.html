@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Link to ATPLCRM</title>
+  <link rel="stylesheet" href="taskpane.css" />
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+</head>
+<body>
+  <header><span class="mark">A</span><div><strong>ATPLCRM</strong><small>LINK SELECTED EMAIL</small></div></header>
+  <main>
+    <div id="status" class="status">Reading the selected Outlook message…</div>
+    <form id="link-form" hidden>
+      <label>Pursuit<select id="pursuit" required></select></label>
+      <label>Classification<select id="classification"><option>Customer communication</option><option>Internal approval</option><option>Proposal sent</option><option>Technical information</option><option>Other</option></select></label>
+      <fieldset><legend>Client recipients</legend><div id="contacts"></div></fieldset>
+      <label class="check"><input id="internal" type="checkbox" /> Internal email</label>
+      <button id="submit" type="submit">Link email and attachments</button>
+    </form>
+    <p class="privacy">Only this selected message is registered. ATPLCRM does not synchronize or scan your mailbox.</p>
+  </main>
+  <script src="taskpane.js"></script>
+</body>
+</html>

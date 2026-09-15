@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     demo_password: str | None = Field(None, alias="DEMO_PASSWORD")
     fx_rates_url: str | None = Field(None, alias="FX_RATES_URL")
     fx_rate_source: str = Field("Configured published source", alias="FX_RATE_SOURCE")
+    artifact_storage_root: str = Field("/data/artifacts", alias="ARTIFACT_STORAGE_ROOT")
+    artifact_max_upload_mb: int = Field(10, alias="ARTIFACT_MAX_UPLOAD_MB", ge=1, le=100)
     session_hours: int = 12
 
     @field_validator("instance_type")

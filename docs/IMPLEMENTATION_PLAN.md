@@ -22,7 +22,7 @@ This plan has two explicit views:
 | Area | Correct position |
 |---|---|
 | Product boundary | Independent ATPLCRM repository at `/Users/n22/Desktop/ATPLCRM`; no Orbit dependency |
-| Current release | v0.12 working core with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality and pre-sales phases complete locally |
+| Current release | v0.13 working core with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality, pre-sales and documents/email phases complete locally |
 | Web application | React 19, TypeScript, Vite, custom responsive CSS, Lucide icons |
 | API | FastAPI 0.135, Pydantic, modular-monolith domain services |
 | Persistence | PostgreSQL 17, SQLAlchemy 2, Alembic migrations, decimal financial values |
@@ -321,7 +321,7 @@ Settings are typed and validated at startup. Environment files contain local val
 | Import/data quality | Local feature scope complete; background connected-volume acceptance remains |
 | Pipeline | Local feature scope complete; connected-scale acceptance remains |
 | Commercial | Local feature scope complete; connected FX-source acceptance remains |
-| Documents | Managed upload/storage, Outlook add-in, mail/attachment linking, sharing approval/register, recipients/date, versions and reusable library |
+| Documents | Local managed uploads, links, mail/attachment registration, approval/register, versions and reusable library complete; Azure Blob/Graph activation and Outlook tenant deployment remain |
 | Pre-sales | Local feature scope complete; connected-scale acceptance remains |
 | Reports | Time filters, historical funnel, losses, blockers, erosion, partner/movement/performance, server exports, Excel and configuration parity |
 | Search/scale | PostgreSQL full-text indexes/ranking, recent search history, cache strategy and documented performance acceptance |

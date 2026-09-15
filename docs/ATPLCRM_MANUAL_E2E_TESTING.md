@@ -1,6 +1,6 @@
-# ATPLCRM v0.7 Manual End-to-End Testing Handbook
+# ATPLCRM v0.13 Manual End-to-End Testing Handbook
 
-**Document purpose:** manually validate every function implemented through ATPLCRM v0.7 before starting another feature.
+**Document purpose:** manually validate every function implemented through ATPLCRM v0.13 before starting another feature.
 **Audience:** business testers, administrators, sales users, pre-sales users and release reviewers.
 **Execution date:** ____________________  **Tester:** ____________________  **Build/commit:** ____________________
 **Environment:** ☐ International  ☐ US  **Result:** ☐ Pass  ☐ Pass with observations  ☐ Fail
@@ -11,7 +11,7 @@
 
 ![ATPLCRM login](manual-testing/screenshots/01-login.png)
 
-ATPLCRM v0.7 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
+ATPLCRM v0.13 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
 
 ```mermaid
 flowchart LR
@@ -30,21 +30,21 @@ Every pursuit has one commercial owner, one Ball in Court holder, one next actio
 
 ## 2. Scope boundary
 
-This handbook tests what exists in **v0.7**. The following items are planned or partial and must not be reported as v0.7 defects merely because the complete future workflow is absent:
+This handbook tests what exists in **v0.13**. The following connected services still require Azure tenant configuration and must not be reported as local defects merely because the external service is absent:
 
-| Area | Current v0.7 boundary |
+| Area | Current v0.13 boundary |
 |---|---|
 | Identity | Local password sign-in only; Microsoft Entra/OIDC is planned. |
 | Authorization | Current owner/team/management rules are testable; a fine-grained policy editor is planned. |
-| Imports | CSV up to 5,000 rows; Excel, background jobs, fuzzy matching and field-by-field merge choice are planned. |
-| Documents | Secure HTTPS links only; file upload, Outlook/email linking, sharing register and version supersession are planned. |
-| Commercial | Stored currency/rate and value history work; rate refresh, re-baseline, full partner UI and complete close/handoff fields are pending. |
+| Imports | CSV and Excel mapped imports up to 20,000 rows, dry runs, errors, fuzzy review and field-by-field merge are included. |
+| Documents | All local workflows are included. Azure Blob/SharePoint/Graph adapters and Outlook tenant deployment need Entra/Azure configuration; the in-app selected-email form tests the same registration endpoint locally. |
+| Commercial | Partner terms, net values, fixed exchange rates, rate refresh/re-baseline and close/handoff fields are included locally. |
 | Pre-sales | Complete assignment, nine-state lifecycle, contributors, review/share evidence, effort, weekly capacity and cost reporting work locally. |
 | Reports | Current overview, pipeline, lead distribution, calendar-aware lifecycle and stage-movement reports and forecast CSV work; historical funnels and other advanced reports are pending. |
-| AI | No AI provider or simulated AI feature exists in v0.7. |
-| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.7. |
+| AI | No AI provider or simulated AI feature exists in v0.13. |
+| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.13. |
 
-If a current control fails inside these boundaries, record a defect. If a planned control is absent, record it as **Not in v0.7 scope**.
+If a current control fails inside these boundaries, record a defect. If Azure tenant connectivity is unavailable, record the connected-only step as **Environment not configured** and still test its local API/UI equivalent.
 
 ## 3. Roles and seeded accounts
 
@@ -196,7 +196,7 @@ Confirm the configured inactivity timeout is 12 hours. For practical manual acce
 
 ### NAV-01 — Main navigation and context header
 
-Select every navigation item: Overview, My work, Needs attention, Leads, Opportunities, Companies, Contacts, Pre-sales, Reports, Data tools and Administration.
+Select every navigation item: Overview, My work, Needs attention, Leads, Opportunities, Companies, Contacts, Documents, Pre-sales, Reports, Data tools and Administration.
 
 **Expected:** the correct title and content load without a full-page error; the header breadcrumb, instance label, profile, notifications and sign-out controls remain available.
 **Actual/result:** ______________________________________________________________________
@@ -621,9 +621,9 @@ As the assigned tech lead, exercise each allowed path through Requested, Clarifi
 
 ### PRE-04 — Approval and delivery gate
 
-As the tech lead, attempt Ready for review without evidence, then link an artifact. Attempt approval as Standard and with an internal-only artifact. As Manager, add review evidence and approve; then let the tech lead deliver with and without actual effort.
+As the tech lead, attempt Ready for review without evidence, then link an artifact. Attempt approval as Standard and with an internal-only artifact. As Manager, add review evidence and approve; then let the tech lead deliver with and without actual effort and named client recipients.
 
-**Expected:** review requires linked deliverable evidence; client approval rejects internal-only evidence and requires a Manager plus review note; Delivered is allowed only from Approved to share and requires actual days; delivery marks the approved artifact shared, stores the share time and removes the work from My Work.
+**Expected:** review requires linked deliverable evidence; client approval rejects internal-only evidence and requires a Manager plus review note; Delivered is allowed only from Approved to share and requires actual days plus at least one same-company contact; delivery records the exact recipients/share time and removes the work from My Work.
 **Actual/result:** ______________________________________________________________________
 
 ### PRE-05 — Cost of pre-sales
@@ -633,18 +633,60 @@ Deliver several request types across different opportunity service lines, then c
 **Expected:** delivered-request count and actual days reconcile; groupings by request type, service line and Won/Lost/Open outcome reconcile; undelivered estimates are excluded; Standard report access is refused.
 **Actual/result:** ______________________________________________________________________
 
-### DOC-01 — Evidence link register
+### DOC-01 — SharePoint/OneDrive link
 
-As an assigned pursuit user, add an HTTPS document link with title, type, version and visibility.
+Open **Documents → Register artifact → M365 link**. Select a pursuit and add title, every artifact type in turn, a valid HTTPS link, visibility and reusable-library choice. Try an invalid URL.
 
-**Expected:** invalid URL is rejected; valid item appears in Documents and opens in a new tab; document type/version/visibility display correctly.
+**Expected:** invalid URL is rejected; the valid item appears globally and in the pursuit Documents tab; title, company, pursuit, kind, type and v1 are correct; Open launches the exact URL.
 **Actual/result:** ______________________________________________________________________
 
-### DOC-02 — Internal evidence visibility
+### DOC-02 — Managed upload and protected download
 
-Add one Pursuit document and one Internal team-only document. View as assigned and unrelated users.
+Upload one allowed document smaller than 10 MB. Try an empty file, a file larger than 10 MB and an executable/script extension. Download the valid file, restart Docker, and download again.
 
-**Expected:** assigned users see both; unrelated users see only the pursuit document, subject to restricted-value behavior.
+**Expected:** the valid file is private and retrievable only through an authenticated route with the original name; size and checksum metadata exist; invalid/oversized/empty files are rejected without an artifact or orphan; the file persists in the `artifacts` Docker volume.
+**Actual/result:** ______________________________________________________________________
+
+### DOC-03 — Visibility and approval
+
+Create one pursuit document and one **Internal team only** artifact. View as an assigned user and unrelated Standard user. Attempt approval as Standard, then as Manager; try approving the internal item.
+
+**Expected:** assigned users see both; unrelated users cannot discover/download the internal item; Standard approval is refused; Manager approval records approver/time; internal artifacts cannot be approved for client sharing.
+**Actual/result:** ______________________________________________________________________
+
+### DOC-04 — Named-recipient client sharing
+
+On an approved current artifact choose **Record share**. Try no contacts and a contact from another company through the API, then choose two contacts at the pursuit company and set/omit the date.
+
+**Expected:** invalid recipient sets are rejected atomically; valid sharing records the exact contacts and supplied/current time; the item appears chronologically under **Client-shared** and in its company and opportunity register context.
+**Actual/result:** ______________________________________________________________________
+
+### DOC-05 — Version supersession
+
+Create a new version of an uploaded file and an M365 link. Attempt another new version from the now-old row.
+
+**Expected:** the new record is v2 and points to v1; v1 remains visible and marked Superseded; a second branch from v1 conflicts; only the current version can be approved/shared; each version opens its own content/link.
+**Actual/result:** ______________________________________________________________________
+
+### DOC-06 — Selected email and automatic attachments
+
+Use **Register artifact → Selected email**. Record subject, Outlook message link/ID, date, direction, participant addresses and each classification. Attach a Proposal-named PDF and Pricing-named spreadsheet. For outbound mail select company contacts; repeat as inbound and internal.
+
+**Expected:** one Linked email artifact is created with readable metadata/classification; supported attachments appear automatically as separate correctly inferred artifacts with no second upload; outbound non-internal mail and attachments share the same date/recipients; inbound/internal records do not enter the client-shared register.
+**Actual/result:** ______________________________________________________________________
+
+### DOC-07 — Outlook one-action task pane
+
+After replacing `YOUR-ATPLCRM-HOST` in `apps/web/public/outlook/manifest.xml`, serving ATPLCRM through approved HTTPS and deploying/sideloading the manifest, select an Outlook message and choose **Link to ATPLCRM**. Select pursuit/classification/recipients and submit once.
+
+**Expected:** the task pane reads only the selected message, shows direction/attachment count, creates the same email and attachment records as DOC-06, and states the privacy rule. No mailbox sync, BCC filing or domain matching occurs. If the Azure/Entra host is not configured, mark only this case Environment not configured.
+**Actual/result:** ______________________________________________________________________
+
+### DOC-08 — Search and reusable asset library
+
+Search by title, artifact type, original filename and email subject. Add a file/link to the reusable library, open the Library tab, attach it to a different editable pursuit with a new title, then remove the source from the library.
+
+**Expected:** searches return matching tenant-visible rows; superseded items are hidden from current-library results; reuse creates a new pursuit artifact linked to the same controlled content without changing the source; removing the library flag prevents future selection but does not delete existing pursuit records.
 **Actual/result:** ______________________________________________________________________
 
 ## 11. Search, imports, duplicates and data quality
@@ -940,7 +982,8 @@ Use this as the final completeness gate.
 | Company/contact CRUD, ownership, engagement, DNC and collision | REL-01–10 | ☐ |
 | Lead create/status/nurture/disqualify/convert and preservation | LEAD-01–08 | ☐ |
 | Pipeline board/list, stages, gates, roles, stakeholders, values and milestones | OPP-01–16 | ☐ |
-| Pre-sales request/status/approval/effort and evidence links | PRE-01–04, DOC-01–02 | ☐ |
+| Pre-sales request/status/approval/effort and evidence links | PRE-01–05 | ☐ |
+| Upload/link/email artifacts, sharing register, versions and reusable library | DOC-01–08 | ☐ |
 | Global search, CSV templates/imports/errors/history, duplicates and quality | DATA-01–10 | ☐ |
 | Pipeline/funnel/lifecycle/forecast reports and CSV export | RPT-01–06 | ☐ |
 | Users, access levels, reference data, probabilities and rates | ADMIN-01–09 | ☐ |

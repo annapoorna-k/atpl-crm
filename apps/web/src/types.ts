@@ -61,6 +61,41 @@ export interface Contact {
   last_outbound_at: string | null;
   last_outbound_pursuit: string | null;
 }
+
+export interface ArtifactRecord {
+  id: string;
+  pursuit_id: string;
+  pursuit: string;
+  company_id: string;
+  company: string;
+  title: string;
+  artifact_type: string;
+  kind: string;
+  url: string;
+  original_filename: string;
+  content_type: string;
+  byte_size: number;
+  checksum_sha256: string;
+  version: number;
+  supersedes_id: string | null;
+  superseded: boolean;
+  parent_email_id: string | null;
+  email_classification: string;
+  message_reference: string;
+  email_subject: string;
+  email_date: string | null;
+  email_direction: string;
+  email_participants: string[];
+  internal_only: boolean;
+  is_reusable: boolean;
+  approved: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
+  shared_with_client: boolean;
+  shared_at: string | null;
+  recipients: { id: string; name: string; email: string }[];
+  created_at: string;
+}
 export interface Pursuit {
   id: string;
   name: string;
@@ -337,16 +372,7 @@ export interface Timeline {
     completed_at: string;
     completed_by: string;
   }[];
-  artifacts: {
-    id: string;
-    title: string;
-    type: string;
-    url: string;
-    version: number;
-    internal_only: boolean;
-    approved: boolean;
-    shared_at: string | null;
-  }[];
+  artifacts: ArtifactRecord[];
   restricted_content?: boolean;
 }
 

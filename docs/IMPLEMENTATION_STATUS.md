@@ -1,4 +1,4 @@
-# ATPLCRM v0.12 delivery status
+# ATPLCRM v0.13 delivery status
 
 This release starts the implementation plan and delivers an executable core. It does not mark all phases complete.
 
@@ -27,6 +27,7 @@ This release starts the implementation plan and delivers an executable core. It 
 - Opportunity close capture now retains loss context/competitor data or won contract, project-start, duration, final evidence, optional approval evidence and delivery handoff notes. Probability overrides retain the stage-default snapshot.
 - Company/contact/activity completion: every section 7.5 contact field is editable, source attribution and controlled engagement are enforced, first/last/touch metrics are derived, do-not-contact overrides are retained, collision warnings include prior outreach context, and Company 360/Contact Detail use full paginated histories.
 - Import/data-quality completion: CSV and `.xlsx` dry runs support mapped full-field company/contact/lead imports up to 20,000 rows, within-file and existing-record validation, confirmed fuzzy warnings, durable job results, field-by-field duplicate merges/dismissals and actionable filtered quality reporting.
+- Documents/email completion: private managed uploads, Microsoft 365 links, selected-email metadata and automatic attachment registration, classification, manager approval, named-recipient sharing, company/opportunity registers, version supersession and a reusable searchable asset library.
 - FastAPI workflow tests, TypeScript/production UI build, plus Docker/PostgreSQL and browser verification as recorded in VERIFICATION.md.
 
 ## Deliberate limits and remaining work
@@ -34,12 +35,12 @@ This release starts the implementation plan and delivers an executable core. It 
 | Area | Remaining scope |
 | Identity | Real Entra OIDC, local OIDC provider replacement for temporary demo password login, provisioned-user lifecycle and stronger login rate limiting. |
 | Administration | Fine-grained permission policies and connected-identity provisioning. Local users, global access levels, activation, password resets, reference options, stage probabilities and rates are editable now. |
-| Schema | Remaining artifact/email/share fields; complete database-level role/tenant constraints and separate runtime/migration privileges. Commercial partner, closure and rate-governance fields are complete. |
+| Schema | Complete database-level role/tenant constraints and separate runtime/migration privileges. Artifact/email/share, commercial partner, closure and rate-governance fields are complete. |
 | Data entry | Company/contact/lead CSV and Excel import plus duplicate/data-quality workflows and qualified opportunity editing are complete locally. Connected-volume performance acceptance remains pending. |
 | Pipeline | Lead and opportunity workflow is complete locally: specialized filters, alternate validation routing, editable qualified fields, configurable working calendars, stage movement analysis, drag-and-drop, action completion, concurrency protection and seven milestones. Connected-scale acceptance remains pending. |
 | Commercial | Local implementation complete. Configure and approve `FX_RATES_URL`/source before connected monthly refresh acceptance; synthetic rates remain clearly labelled. |
 | Activity | Company/contact completion is implemented with paginated protected histories, collision context, engagement updates and retained overrides. Scale acceptance at the PRD target remains pending. |
-| Documents | Real upload/storage adapter, Outlook add-in, email linking/attachments, sharing approval/recipients/register, artifact version supersession and reusable library. Basic HTTPS evidence links work. |
+| Documents | Local workflows are complete with a private Docker volume and an Outlook task-pane package. Azure Blob/SharePoint/Graph adapters, add-in tenant deployment and connected acceptance require the Azure environment and Entra application configuration. |
 | Pre-sales | Local implementation complete: Head of Pre-Sales assignment, tech-lead acceptance, nine-state transition matrix, contributors, deliverable/review/share gates, actual effort, weekly capacity and cost analytics. Connected-scale acceptance remains pending. |
 | Reports | Monthly/quarterly filters, loss/blocker/value-erosion and individual performance analysis, server exports, Excel support and configuration parity remain. Stage movement, partner performance and undocumented-terms reports work now. |
 | Search/scale | Search-specific PostgreSQL indexes/full-text ranking, recent-search history, stale-data/query caching and documented 20k/5k/5k performance acceptance. Universal search and the four main record lists paginate on the server. |
@@ -59,5 +60,5 @@ This release starts the implementation plan and delivers an executable core. It 
 ## Next implementation order
 
 1. Entra/OIDC; complete record/field authorization matrix and runtime database privileges.
-2. Complete advanced reports and document/Microsoft integrations.
+2. Complete advanced reports and activate the Azure Microsoft adapters.
 3. Notifications/operations, AI, hardening and production/connected acceptance.

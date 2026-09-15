@@ -15,6 +15,8 @@ x-app: &app
     REDIS_URL: redis://redis:6379/0
     FX_RATES_URL: ${FX_RATES_URL:-}
     FX_RATE_SOURCE: ${FX_RATE_SOURCE:-Configured published source}
+    ARTIFACT_STORAGE_ROOT: /data/artifacts
+    ARTIFACT_MAX_UPLOAD_MB: ${ARTIFACT_MAX_UPLOAD_MB:-10}
     CSRF_TRUSTED_ORIGINS: http://localhost:${PORT:-8082},http://127.0.0.1:${PORT:-8082}
   init: true
   restart: unless-stopped
@@ -53,6 +55,8 @@ services:
         condition: service_healthy
   api:
     <<: *app
+    volumes:
+      - artifacts:/data/artifacts
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -93,3 +97,4 @@ services:
 volumes:
   database:
   queue:
+  artifacts:

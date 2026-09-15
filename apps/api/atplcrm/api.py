@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session, selectinload
 from . import presenters as out
 from .constants import ACTIVITY_OUTCOMES, ACTIVITY_TYPES, COMPANY_TYPES, MANAGEMENT
 from .database import get_db
-from .models import Activity, AppSession, Artifact, AuditEvent, CommercialSetting, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PartnerInvolvement, PreSalesContributor, PreSalesRequest, Pursuit, PursuitAction, PursuitContact, TeamRole, User, ValueHistory, WorkingCalendar, WorkspaceReference
+from .models import Activity, AppSession, Artifact, ArtifactRecipient, AuditEvent, CommercialSetting, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PartnerInvolvement, PreSalesContributor, PreSalesRequest, Pursuit, PursuitAction, PursuitContact, TeamRole, User, ValueHistory, WorkingCalendar, WorkspaceReference
+from .documents import attach_recipients, present as present_artifact, recipient_contacts
 from .references import contract as reference_contract, probability as stage_probability, require_code
 from .schemas import ActivityInput, ArtifactInput, CompanyInput, CompanyPatch, ContactInput, ContactPatch, ConversionInput, DisqualifyInput, LeadInput, LeadStatusInput, LoginInput, NurtureInput, OpportunityPatch, ProbabilityInput, RequestInput, RequestPatch, RestrictionInput, StageInput, TeamInput, ValueInput, WorkInput
 from .security import current_user, delete_session, hash_token, new_session, set_session_cookie, verify_password
@@ -474,9 +475,9 @@ def timeline(identifier: UUID, db: Session = Depends(get_db), user: User = Depen
     activities = db.scalars(scoped(db, Activity, user).where(Activity.pursuit_id == pursuit.id).options(selectinload(Activity.company), selectinload(Activity.created_by)).order_by(Activity.activity_date.desc())).all()
     artifact_query = scoped(db, Artifact, user).where(Artifact.pursuit_id == pursuit.id)
     if not can_work(db, user, pursuit): artifact_query = artifact_query.where(Artifact.internal_only.is_(False))
-    artifacts = db.scalars(artifact_query).all()
+    artifacts = db.scalars(artifact_query.options(selectinload(Artifact.pursuit), selectinload(Artifact.company), selectinload(Artifact.approved_by), selectinload(Artifact.recipients).selectinload(ArtifactRecipient.contact))).unique().all()
     actions = db.scalars(scoped(db, PursuitAction, user).where(PursuitAction.pursuit_id == pursuit.id).options(selectinload(PursuitAction.completed_by)).order_by(PursuitAction.completed_at.desc())).all()
-    return {"activities": [out.activity(item) for item in activities], "events": [{"id": str(event.id), "action": event.action, "detail": event.detail, "date": event.created_at, "author": event.created_by.display_name if event.created_by else "System"} for event in events], "completed_actions": [out.completed_action(item) for item in actions], "artifacts": [{"id": str(item.id), "title": item.title, "type": item.artifact_type, "url": item.storage_link, "version": item.version, "internal_only": item.internal_only, "approved": bool(item.approved_by_id), "shared_at": item.shared_at} for item in artifacts]}
+    return {"activities": [out.activity(item) for item in activities], "events": [{"id": str(event.id), "action": event.action, "detail": event.detail, "date": event.created_at, "author": event.created_by.display_name if event.created_by else "System"} for event in events], "completed_actions": [out.completed_action(item) for item in actions], "artifacts": [present_artifact(db, user, item) for item in artifacts]}
 
 
 PRESALES_TRANSITIONS = {
@@ -656,9 +657,13 @@ def update_request(identifier: UUID, payload: RequestPatch, db: Session = Depend
         if payload.status == "Delivered":
             if payload.actual_days is None:
                 raise http_error(422, {"actual_days": "Actual days are required at delivery."})
+            if not payload.shared_with_contact_ids:
+                raise http_error(422, {"shared_with_contact_ids": "Select the client contacts who received the deliverable."})
             item.actual_days, item.delivered_at = payload.actual_days, datetime.now(timezone.utc)
             artifact = get_scoped(db, Artifact, user, item.deliverable_artifact_id)
-            artifact.shared_at = datetime.now(timezone.utc)
+            contacts = recipient_contacts(db, user, pursuit, payload.shared_with_contact_ids)
+            attach_recipients(db, user, artifact, contacts)
+            artifact.shared_with_client, artifact.shared_at = True, datetime.now(timezone.utc)
         if payload.status == "Accepted" and not item.accepted_at:
             item.accepted_at = datetime.now(timezone.utc)
         if payload.status == "Ready for review":
@@ -735,10 +740,3 @@ def presales_cost_report(db: Session = Depends(get_db), user: User = Depends(cur
     def result(name: str):
         return [{"key": key, "request_count": values[0], "actual_days": str(values[1])} for key, values in sorted(groups[name].items())]
     return {"delivered_requests": len(rows), "actual_days": str(sum((item.actual_days or Decimal("0") for item in rows), Decimal("0"))), "by_request_type": result("request_type"), "by_service_line": result("service_line"), "by_outcome": result("outcome")}
-
-
-@router.post("/artifacts/", status_code=201)
-def create_artifact(payload: ArtifactInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    pursuit = load_pursuit(db, user, payload.pursuit); require_work(db, user, pursuit)
-    item = Artifact(**stamp(user), pursuit_id=pursuit.id, title=payload.title, artifact_type=payload.artifact_type, storage_link=str(payload.storage_link), version=payload.version, internal_only=payload.internal_only)
-    db.add(item); audit(db, user, "Evidence registered", pursuit, item.title); db.commit(); return {"id": str(item.id)}

@@ -54,3 +54,27 @@ export async function api<T>(
 ): Promise<T> {
   return request<T>(path, method, body);
 }
+
+export async function apiForm<T>(path: string, body: FormData, retryCsrf = true): Promise<T> {
+  const response = await fetch(`/api/v1/${path}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "X-CSRFToken": csrf },
+    body,
+  });
+  const data = await response.json().catch(() => ({ detail: "The server did not return a valid response." }));
+  if (data.csrf) csrf = data.csrf;
+  if (retryCsrf && response.status === 403 && data.detail === "CSRF validation failed.") {
+    const refresh = await fetch("/api/v1/session/", { credentials: "same-origin", cache: "no-store" });
+    const session = await refresh.json().catch(() => ({}));
+    if (refresh.ok && session.csrf) {
+      csrf = session.csrf;
+      return apiForm<T>(path, body, false);
+    }
+  }
+  if (!response.ok) {
+    const detail = typeof data.detail === "string" ? data.detail : Object.entries(data).map(([key, value]) => `${key.replaceAll("_", " ")}: ${Array.isArray(value) ? value.join(" ") : value}`).join(" · ");
+    throw new Error(detail || "Something went wrong. Please try again.");
+  }
+  return data as T;
+}
