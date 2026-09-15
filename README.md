@@ -14,7 +14,7 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.11, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.12, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
@@ -29,7 +29,7 @@ This is **v0.11, an initial working core**, using synthetic data and local passw
 - Per-user notification preferences and thresholds, durable in-app delivery history, escalation routing, 15-minute exception scans, Monday leadership summaries, and automation run/failure monitoring.
 - Fast backdated activity entry with derived client-facing behavior, automatic contact engagement/first-touch updates, pre-save cross-owner context and durable collision notifications.
 - Company 360 and Contact Detail show complete paginated interaction histories, every related pursuit, source and relationship context, and retained do-not-contact overrides.
-- Team assignments, pre-sales request creation/status updates, secure document-link registration and periodic attention/revisit notifications.
+- Complete pre-sales delivery management with Head of Pre-Sales assignment, tech-lead acceptance, supporting contributors, evidence-backed review/approval, actual effort, weekly capacity and cost analysis; secure document-link registration and periodic attention/revisit notifications.
 - Administrator-managed local users, access levels, activation and password resets, plus configurable workflow labels, stage probabilities and exchange rates.
 - Tenant-scoped global search; mapped CSV and Excel dry runs/imports for companies, full contacts and leads; downloadable templates/error reports; import warnings and durable history; exact/fuzzy duplicate review with field-by-field merge or dismissal; and a filtered, exportable data-quality dashboard.
 - Server-paginated company, contact, lead and opportunity lists with complete source, responsibility, activity, blocker, partner, service, close-period and value filters; reusable personal saved views; manager-only bulk owner/Ball-in-Court assignment with audit and concurrent-edit protection.

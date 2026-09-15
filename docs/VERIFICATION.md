@@ -1,16 +1,16 @@
-# ATPLCRM v0.11 verification
+# ATPLCRM v0.12 verification
 
 Verified locally on 15 September 2026.
 
 | Check | Result |
 |---|---|
-| Lead and pipeline API workflows | 11 passed: action completion/history, stale-version rejection, future dates, stage evidence/concurrency, seven milestones, working calendar, movement analysis, opportunity editing, advanced filters, saved views, bulk assignment and stakeholders |
+| Complete pre-sales workflow | 1 focused end-to-end API test passed: Head assignment, invalid-transition rejection, tech-lead acceptance, contributors, progress, artifact evidence, Ready for review, Manager approval, delivery, actual effort, share timestamp, weekly queue and cost grouping |
 | TypeScript and Vite production build | Passed, 1,582 modules transformed |
-| International deployment | Healthy on `http://localhost:8082`; API `0.11.0`; migration `0010_pipeline_completion` |
-| US deployment | Healthy on `http://localhost:8083`; API `0.11.0`; migration `0010_pipeline_completion` |
-| New pipeline controls | Eligible-validator route, qualified opportunity patch, lead/opportunity advanced filters, calendar-aware elapsed days and management movement report are live in both API schemas |
+| International deployment | Healthy on `http://localhost:8082`; API `0.12.0`; migration `0011_presales_completion` |
+| US deployment | Healthy on `http://localhost:8083`; API `0.12.0`; migration `0011_presales_completion` |
+| New pre-sales APIs | Request detail/permissions, filtered weekly queue, capacity calculation and management cost report are live in both API schemas |
 | Python source | API, models, schemas and migration compile in the application image |
 
-These are focused Feature 5 checks and avoid repeating the established full suite. The v0.10 verification covered import/data-quality; earlier releases cover company/contact/activity, commercial, authorization and browser acceptance.
+This is a focused Feature 6 check and avoids repeating the established suite. The v0.11 verification covered lead/pipeline completion; earlier releases cover imports, relationships, commercial workflows, authorization and browser acceptance.
 
-The local release now completes the PRD lead and opportunity workflow scope. Connected-scale performance, production identity and other remaining release-hardening work are tracked separately in the implementation status.
+The local release now completes FR-75 through FR-81. Connected-scale performance, production identity and other remaining release-hardening work are tracked separately in the implementation status.

@@ -25,7 +25,7 @@ def reference_out(item: WorkspaceReference) -> dict:
 def create_user(payload: AdminUserInput, db: Session = Depends(get_db), admin: User = Depends(administrator)):
     email = str(payload.email).lower()
     if db.scalar(select(User.id).where(func.lower(User.username) == email)): raise http_error(422, {"email": "A user with this email already exists."})
-    item = User(username=email, email=email, password=passwords.hash(payload.password), first_name=payload.first_name, last_name=payload.last_name, job_title=payload.job_title, level=payload.level, tenant_id=admin.tenant_id, is_active=True)
+    item = User(username=email, email=email, password=passwords.hash(payload.password), first_name=payload.first_name, last_name=payload.last_name, job_title=payload.job_title, level=payload.level, weekly_capacity_days=payload.weekly_capacity_days, tenant_id=admin.tenant_id, is_active=True)
     db.add(item); audit(db, admin, "Workspace user created", detail=f"{item.display_name} · {item.level}"); db.commit(); db.refresh(item)
     return out.person(item)
 

@@ -60,6 +60,8 @@ import type {
   UndocumentedPartnerReport,
   ActivityPage,
   MovementReport,
+  PreSalesCostReport,
+  PreSalesQueue,
   ValidationRoute,
 } from "./types";
 
@@ -93,6 +95,12 @@ const tomorrow = () => {
   const x = new Date();
   x.setDate(x.getDate() + 1);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+};
+const weekStart = () => {
+  const value = new Date();
+  const day = value.getDay();
+  value.setDate(value.getDate() - ((day + 6) % 7));
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 };
 const nav = [
   {
@@ -130,6 +138,7 @@ type Field = {
   value?: string;
   required?: boolean;
   hint?: string;
+  multiple?: boolean;
 };
 type FormSpec = {
   title: string;
@@ -211,10 +220,13 @@ function FormModal({
     e.preventDefault();
     setBusy(true);
     setError("");
-    const values = Object.fromEntries(new FormData(e.currentTarget)) as Record<
-      string,
-      string
-    >;
+    const formData = new FormData(e.currentTarget);
+    const values = Object.fromEntries(formData) as Record<string, string>;
+    spec.fields
+      .filter((field) => field.multiple)
+      .forEach((field) => {
+        values[field.name] = formData.getAll(field.name).join(",");
+      });
     try {
       await spec.submit(values);
       onSuccess();
@@ -262,42 +274,70 @@ function FormModal({
         }
       >
         <div className="form-grid">
-          {spec.fields.map((f) => (
-            <label key={f.name} className={f.type === "textarea" ? "full" : ""}>
-              {f.label}
-              {f.required !== false && <span className="required"> *</span>}
-              {f.options ? (
-                <select
-                  name={f.name}
-                  defaultValue={f.value ?? ""}
-                  required={f.required !== false}
-                >
-                  <option value="">Select…</option>
-                  {f.options.map(([value, label]) => (
-                    <option key={value} value={value}>
+          {spec.fields.map((f) =>
+            f.multiple ? (
+              <fieldset key={f.name} className="full checkbox-fieldset">
+                <legend>
+                  {f.label}
+                  {f.required !== false && <span className="required"> *</span>}
+                </legend>
+                <span className="checkbox-options">
+                  {f.options?.map(([value, label]) => (
+                    <label key={value}>
+                      <input
+                        type="checkbox"
+                        name={f.name}
+                        value={value}
+                        defaultChecked={(f.value ?? "")
+                          .split(",")
+                          .includes(value)}
+                      />
                       {label}
-                    </option>
+                    </label>
                   ))}
-                </select>
-              ) : f.type === "textarea" ? (
-                <textarea
-                  name={f.name}
-                  defaultValue={f.value}
-                  required={f.required !== false}
-                  rows={3}
-                />
-              ) : (
-                <input
-                  name={f.name}
-                  type={f.type ?? "text"}
-                  defaultValue={f.value}
-                  required={f.required !== false}
-                  step={f.type === "number" ? "any" : undefined}
-                />
-              )}{" "}
-              {f.hint && <small>{f.hint}</small>}
-            </label>
-          ))}
+                </span>
+                {f.hint && <small>{f.hint}</small>}
+              </fieldset>
+            ) : (
+              <label
+                key={f.name}
+                className={f.type === "textarea" ? "full" : ""}
+              >
+                {f.label}
+                {f.required !== false && <span className="required"> *</span>}
+                {f.options ? (
+                  <select
+                    name={f.name}
+                    defaultValue={f.value ?? ""}
+                    required={f.required !== false}
+                  >
+                    <option value="">Select…</option>
+                    {f.options.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                ) : f.type === "textarea" ? (
+                  <textarea
+                    name={f.name}
+                    defaultValue={f.value}
+                    required={f.required !== false}
+                    rows={3}
+                  />
+                ) : (
+                  <input
+                    name={f.name}
+                    type={f.type ?? "text"}
+                    defaultValue={f.value}
+                    required={f.required !== false}
+                    step={f.type === "number" ? "any" : undefined}
+                  />
+                )}{" "}
+                {f.hint && <small>{f.hint}</small>}
+              </label>
+            ),
+          )}
         </div>
         {notice && (
           <div role="status" className="form-notice">
@@ -467,6 +507,11 @@ export default function App() {
     [undocumentedPartners, setUndocumentedPartners] = useState<
       UndocumentedPartnerReport[]
     >([]),
+    [presalesQueue, setPresalesQueue] = useState<PreSalesQueue | null>(null),
+    [presalesWeek, setPresalesWeek] = useState(weekStart),
+    [presalesOwner, setPresalesOwner] = useState(""),
+    [presalesStatus, setPresalesStatus] = useState("open"),
+    [presalesCost, setPresalesCost] = useState<PreSalesCostReport | null>(null),
     [relationshipHistory, setRelationshipHistory] =
       useState<ActivityPage | null>(null);
   const detailRef = useRef<HTMLDialogElement>(null);
@@ -501,13 +546,26 @@ export default function App() {
       api<UndocumentedPartnerReport[]>(
         "commercial/reports/undocumented-partners/",
       ),
+      api<PreSalesCostReport>("presales/cost-report/"),
     ])
-      .then(([performance, undocumented]) => {
+      .then(([performance, undocumented, cost]) => {
         setPartnerPerformance(performance);
         setUndocumentedPartners(undocumented);
+        setPresalesCost(cost);
       })
       .catch((e) => setToast((e as Error).message));
   }, [session, page, data]);
+  useEffect(() => {
+    if (!session || page !== "presales") return;
+    const params = new URLSearchParams({
+      week: presalesWeek,
+      status_filter: presalesStatus,
+    });
+    if (presalesOwner) params.set("owner_id", presalesOwner);
+    api<PreSalesQueue>(`presales/queue/?${params}`)
+      .then(setPresalesQueue)
+      .catch((e) => setToast((e as Error).message));
+  }, [session, page, data, presalesWeek, presalesOwner, presalesStatus]);
   useEffect(() => {
     const handler = () => {
       setPage(location.hash.slice(1) || "overview");
@@ -711,6 +769,11 @@ export default function App() {
             "Executive",
             "Administrator",
           ]),
+        }),
+        field("weekly_capacity_days", "Weekly pre-sales capacity (days)", {
+          type: "number",
+          value: user?.weekly_capacity_days ?? "5",
+          hint: "Used by the weekly team-load view.",
         }),
         ...(user
           ? [
@@ -1370,8 +1433,18 @@ export default function App() {
     });
   }
   function requestForm() {
+    const canAssign =
+      ["Executive", "Administrator"].includes(d.user.level) ||
+      d.user.job_title
+        .toLowerCase()
+        .replaceAll("-", " ")
+        .includes("head of pre sales") ||
+      d.user.job_title.toLowerCase().includes("head of presales");
     setForm({
       title: "Request pre-sales work",
+      description: canAssign
+        ? "Create the brief and optionally assign its tech lead."
+        : "Create the brief; the Head of Pre-Sales will assign its tech lead.",
       fields: [
         field("opportunity", "Opportunity", {
           options: d.opportunities.map((o) => [o.opportunity_id!, o.name]),
@@ -1393,38 +1466,155 @@ export default function App() {
           ]),
           value: "Deck",
         }),
-        field("assigned_to", "Assigned to", { options: userOptions }),
+        ...(canAssign
+          ? [
+              field("assigned_to", "Tech lead", {
+                options: userOptions,
+                required: false,
+              }),
+            ]
+          : []),
         field("needed_by", "Needed by", { type: "date", value: tomorrow() }),
+        field("customer_meeting_date", "Customer meeting date", {
+          type: "date",
+          required: false,
+        }),
         field("estimated_days", "Estimated days", {
           type: "number",
           value: "1",
         }),
         field("notes", "Brief", { type: "textarea", required: false }),
       ],
-      submit: (v) => api("requests/", "POST", v),
+      submit: (v) =>
+        api("requests/", "POST", {
+          ...v,
+          assigned_to: v.assigned_to ? Number(v.assigned_to) : null,
+          customer_meeting_date: v.customer_meeting_date || null,
+        }),
     });
   }
-  function updateRequest(r: Request) {
-    setForm({
-      title: "Update deliverable",
-      description: r.title,
-      fields: [
-        field("status", "Status", {
-          options: options(d.reference.request_statuses),
-          value: r.status,
-        }),
-        field("actual_days", "Actual days (required at delivery)", {
-          type: "number",
-          required: false,
-          value: r.actual_days ?? "",
-        }),
-        field("blocked_reason", "Blocker reason (required if blocked)", {
-          required: false,
-          value: r.blocked_reason,
-        }),
-      ],
-      submit: (v) => api(`requests/${r.id}/`, "PATCH", v),
-    });
+  async function updateRequest(r: Request) {
+    try {
+      const [current, requestTimeline] = await Promise.all([
+        api<Request>(`requests/${r.id}/`),
+        api<Timeline>(`pursuits/${r.pursuit_id}/timeline/`),
+      ]);
+      const availableStatuses = [
+        current.status,
+        ...(current.allowed_transitions ?? []),
+      ].filter((value, index, values) => values.indexOf(value) === index);
+      setForm({
+        title: "Update pre-sales deliverable",
+        description: `${current.title} · requested by ${current.requested_by}`,
+        fields: [
+          ...(current.can_assign
+            ? [
+                field("assigned_to", "Assigned tech lead", {
+                  options: userOptions,
+                  value: current.assigned_to_id
+                    ? String(current.assigned_to_id)
+                    : "",
+                  required: false,
+                }),
+              ]
+            : []),
+          ...(current.can_add_contributors
+            ? [
+                field("supporting_contributor_ids", "Supporting contributors", {
+                  options: userOptions.filter(
+                    ([id]) => Number(id) !== current.assigned_to_id,
+                  ),
+                  value: current.contributors
+                    .map((person) => person.id)
+                    .join(","),
+                  required: false,
+                  multiple: true,
+                  hint: "The assigned tech lead controls this supporting team.",
+                }),
+              ]
+            : []),
+          field("status", "Status", {
+            options: options(availableStatuses),
+            value: current.status,
+          }),
+          ...(current.can_edit_brief
+            ? [
+                field("needed_by", "Needed by", {
+                  type: "date",
+                  value: current.needed_by,
+                }),
+                field("customer_meeting_date", "Customer meeting date", {
+                  type: "date",
+                  required: false,
+                  value: current.customer_meeting_date ?? "",
+                }),
+                field("estimated_days", "Estimated days", {
+                  type: "number",
+                  value: current.estimated_days,
+                }),
+                field("deliverable_artifact_id", "Deliverable evidence", {
+                  options: requestTimeline.artifacts.map((artifact) => [
+                    artifact.id,
+                    `${artifact.title} · v${artifact.version}${artifact.internal_only ? " · internal only" : ""}`,
+                  ]),
+                  value: current.deliverable_artifact_id ?? "",
+                  required: false,
+                  hint: "Evidence is required before Ready for review and must be client-shareable before approval.",
+                }),
+                field("review_note", "Review / approval evidence", {
+                  type: "textarea",
+                  required: false,
+                  value: current.review_note,
+                }),
+                field("actual_days", "Actual days", {
+                  type: "number",
+                  required: false,
+                  value: current.actual_days ?? "",
+                  hint: "Required when the assigned tech lead marks the work Delivered.",
+                }),
+                field("blocked_reason", "Blocked reason", {
+                  type: "textarea",
+                  required: false,
+                  value: current.blocked_reason,
+                }),
+                field("notes", "Brief / notes", {
+                  type: "textarea",
+                  required: false,
+                  value: current.notes,
+                }),
+              ]
+            : []),
+        ],
+        submit: (v) =>
+          api(`requests/${current.id}/`, "PATCH", {
+            ...v,
+            version: current.version,
+            assigned_to:
+              "assigned_to" in v && v.assigned_to
+                ? Number(v.assigned_to)
+                : undefined,
+            supporting_contributor_ids:
+              "supporting_contributor_ids" in v
+                ? v.supporting_contributor_ids
+                    .split(",")
+                    .filter(Boolean)
+                    .map(Number)
+                : undefined,
+            ...("deliverable_artifact_id" in v
+              ? { deliverable_artifact_id: v.deliverable_artifact_id || null }
+              : {}),
+            ...("customer_meeting_date" in v
+              ? { customer_meeting_date: v.customer_meeting_date || null }
+              : {}),
+            ...("actual_days" in v
+              ? { actual_days: v.actual_days || null }
+              : {}),
+          }),
+        label: "Save request",
+      });
+    } catch (e) {
+      setToast((e as Error).message);
+    }
   }
   function recordValue(r: Pursuit) {
     setForm({
@@ -2937,32 +3127,140 @@ export default function App() {
                   </span>
                 </div>
               </div>
+              <section className="panel presales-capacity-panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Weekly team load</h2>
+                    <p>
+                      Assigned estimates by needed-by week, with supporting
+                      commitments.
+                    </p>
+                  </div>
+                  <label className="inline-filter">
+                    Week of
+                    <input
+                      type="date"
+                      value={presalesWeek}
+                      onChange={(event) => setPresalesWeek(event.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="capacity-grid">
+                  {presalesQueue?.team_load.map((person) => (
+                    <div
+                      className={
+                        person.over_capacity
+                          ? "capacity-card over"
+                          : "capacity-card"
+                      }
+                      key={person.user_id}
+                    >
+                      <span>
+                        <Avatar name={person.name} small />
+                        <strong>{person.name}</strong>
+                      </span>
+                      <small>{person.job_title}</small>
+                      <div>
+                        <i
+                          style={{
+                            width: `${Math.min(100, Number(person.utilization_pct ?? 0))}%`,
+                          }}
+                        />
+                      </div>
+                      <strong>
+                        {person.assigned_days} / {person.capacity_days} days
+                      </strong>
+                      <small>
+                        {person.request_count} owned ·{" "}
+                        {person.supporting_requests} supporting
+                      </small>
+                      {person.over_capacity && (
+                        <Badge tone="orange">Over capacity</Badge>
+                      )}
+                    </div>
+                  ))}
+                  {presalesQueue && !presalesQueue.team_load.length && (
+                    <Empty
+                      title="No team load this week"
+                      text="Assign a request with a needed-by date in this week."
+                    />
+                  )}
+                </div>
+              </section>
               <section className="panel">
+                <div className="presales-filter-bar">
+                  <label>
+                    Assigned to
+                    <select
+                      value={presalesOwner}
+                      onChange={(event) => setPresalesOwner(event.target.value)}
+                    >
+                      <option value="">All owners</option>
+                      {d.users.map((person) => (
+                        <option key={person.id} value={person.id}>
+                          {person.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Status
+                    <select
+                      value={presalesStatus}
+                      onChange={(event) =>
+                        setPresalesStatus(event.target.value)
+                      }
+                    >
+                      <option value="open">All open</option>
+                      <option value="all">All including closed</option>
+                      {d.reference.request_statuses.map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span>
+                    {presalesQueue?.requests.length ?? 0} matching requests
+                  </span>
+                </div>
                 <div className="table-scroll">
                   <table>
                     <thead>
                       <tr>
                         <th>DELIVERABLE</th>
                         <th>OPPORTUNITY</th>
-                        <th>ASSIGNED TO</th>
+                        <th>TECH LEAD / CONTRIBUTORS</th>
                         <th>STATUS</th>
                         <th>NEEDED BY</th>
-                        <th>ESTIMATE</th>
+                        <th>EFFORT</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {d.requests
-                        .filter((r) => matches(`${r.title} ${r.opportunity}`))
+                      {(presalesQueue?.requests ?? [])
+                        .filter((r) =>
+                          matches(
+                            `${r.title} ${r.opportunity} ${r.assigned_to}`,
+                          ),
+                        )
                         .map((r) => (
                           <tr key={r.id}>
                             <td>
                               <button
                                 className="record-name"
-                                onClick={() => updateRequest(r)}
+                                onClick={() => void updateRequest(r)}
                               >
                                 {r.title}
                               </button>
-                              <small>{r.request_type}</small>
+                              <small>
+                                {r.request_type} · requested by {r.requested_by}
+                              </small>
+                              {r.deliverable_artifact && (
+                                <small>
+                                  <FileText size={12} />{" "}
+                                  {r.deliverable_artifact}
+                                </small>
+                              )}
                             </td>
                             <td>{r.opportunity}</td>
                             <td>
@@ -2970,29 +3268,62 @@ export default function App() {
                                 <Avatar small name={r.assigned_to} />
                                 {r.assigned_to}
                               </div>
+                              <small>
+                                {r.contributors.length
+                                  ? r.contributors
+                                      .map((person) => person.name)
+                                      .join(", ")
+                                  : "No supporting contributors"}
+                              </small>
                             </td>
                             <td>
                               <Badge
                                 tone={
                                   r.status === "Ready for review"
                                     ? "yellow"
-                                    : "blue"
+                                    : r.status === "Blocked"
+                                      ? "orange"
+                                      : r.status === "Delivered"
+                                        ? "green"
+                                        : "blue"
                                 }
                               >
                                 {r.status}
                               </Badge>
+                              {r.approved_by && (
+                                <small>Approved by {r.approved_by}</small>
+                              )}
                             </td>
                             <td
-                              className={r.needed_by < d.today ? "overdue" : ""}
+                              className={
+                                r.needed_by < d.today &&
+                                !["Delivered", "Cancelled"].includes(r.status)
+                                  ? "overdue"
+                                  : ""
+                              }
                             >
                               {date(r.needed_by)}
+                              <small>
+                                Meeting {date(r.customer_meeting_date)}
+                              </small>
                             </td>
-                            <td>{r.estimated_days} days</td>
+                            <td>
+                              {r.actual_days ?? r.estimated_days} days
+                              <small>
+                                {r.actual_days ? "Actual" : "Estimated"}
+                              </small>
+                            </td>
                           </tr>
                         ))}
                     </tbody>
                   </table>
                 </div>
+                {presalesQueue && !presalesQueue.requests.length && (
+                  <Empty
+                    title="No matching requests"
+                    text="Change the owner or status filter, or create a request."
+                  />
+                )}
               </section>
             </>
           )}
@@ -3199,6 +3530,54 @@ export default function App() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  </section>
+                )}
+              {["Administrator", "Manager", "Executive"].includes(
+                d.user.level,
+              ) &&
+                presalesCost && (
+                  <section className="panel presales-cost-panel">
+                    <div className="panel-heading">
+                      <div>
+                        <h2>Cost of pre-sales</h2>
+                        <p>
+                          Actual delivery days grouped by work type, service
+                          line and opportunity outcome.
+                        </p>
+                      </div>
+                      <Badge>{presalesCost.actual_days} actual days</Badge>
+                    </div>
+                    <div className="presales-cost-grid">
+                      {[
+                        ["Request type", presalesCost.by_request_type],
+                        ["Service line", presalesCost.by_service_line],
+                        ["Outcome", presalesCost.by_outcome],
+                      ].map(([heading, rows]) => (
+                        <div key={heading as string}>
+                          <h3>{heading as string}</h3>
+                          {(rows as PreSalesCostReport["by_request_type"]).map(
+                            (row) => (
+                              <div className="report-row" key={row.key}>
+                                <span>
+                                  <strong>{row.key}</strong>
+                                  <small>
+                                    {row.request_count} delivered request
+                                    {row.request_count === 1 ? "" : "s"}
+                                  </small>
+                                </span>
+                                <Badge>{row.actual_days} days</Badge>
+                              </div>
+                            ),
+                          )}
+                          {!(rows as PreSalesCostReport["by_request_type"])
+                            .length && (
+                            <p className="settings-note">
+                              No delivered work yet.
+                            </p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </section>
                 )}

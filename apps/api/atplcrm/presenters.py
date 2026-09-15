@@ -23,7 +23,7 @@ def milestones(item: Pursuit) -> list[dict]:
 
 
 def person(user: User) -> dict:
-    return {"id": user.id, "name": user.display_name, "first_name": user.first_name, "last_name": user.last_name, "level": user.level, "job_title": user.job_title, "email": user.email, "active": user.is_active}
+    return {"id": user.id, "name": user.display_name, "first_name": user.first_name, "last_name": user.last_name, "level": user.level, "job_title": user.job_title, "email": user.email, "active": user.is_active, "weekly_capacity_days": str(user.weekly_capacity_days)}
 
 
 def company(item: Company) -> dict:
@@ -65,4 +65,23 @@ def completed_action(item: PursuitAction) -> dict:
 
 
 def request(item: PreSalesRequest) -> dict:
-    return {"id": str(item.id), "title": item.title, "request_type": item.request_type, "status": item.status, "assigned_to": item.assigned_to.display_name, "assigned_to_id": item.assigned_to_id, "needed_by": item.needed_by, "estimated_days": str(item.estimated_days), "actual_days": str(item.actual_days) if item.actual_days is not None else None, "opportunity": item.opportunity.pursuit.name, "opportunity_id": str(item.opportunity_id), "pursuit_id": str(item.opportunity.pursuit_id), "notes": item.notes, "blocked_reason": item.blocked_reason}
+    return {
+        "id": str(item.id), "title": item.title, "request_type": item.request_type,
+        "status": item.status, "version": item.version, "requested_at": item.created_at,
+        "requested_by": item.requested_by.display_name, "requested_by_id": item.requested_by_id,
+        "assigned_to": item.assigned_to.display_name if item.assigned_to else "Unassigned",
+        "assigned_to_id": item.assigned_to_id, "needed_by": item.needed_by,
+        "customer_meeting_date": item.customer_meeting_date,
+        "estimated_days": str(item.estimated_days),
+        "actual_days": str(item.actual_days) if item.actual_days is not None else None,
+        "opportunity": item.opportunity.pursuit.name,
+        "opportunity_id": str(item.opportunity_id),
+        "pursuit_id": str(item.opportunity.pursuit_id), "notes": item.notes,
+        "blocked_reason": item.blocked_reason, "review_note": item.review_note,
+        "deliverable_artifact_id": str(item.deliverable_artifact_id) if item.deliverable_artifact_id else None,
+        "deliverable_artifact": item.deliverable_artifact.title if item.deliverable_artifact else None,
+        "approved_by": item.approved_by.display_name if item.approved_by else None,
+        "accepted_at": item.accepted_at, "review_ready_at": item.review_ready_at,
+        "approved_at": item.approved_at, "delivered_at": item.delivered_at,
+        "contributors": [{"id": row.user_id, "name": row.user.display_name} for row in item.contributors if not row.is_deleted],
+    }

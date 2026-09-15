@@ -3,7 +3,8 @@ import hmac
 import re
 import secrets
 from difflib import SequenceMatcher
-from datetime import date, datetime, timezone
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 from . import presenters as out
 from .constants import ACTIVITY_OUTCOMES, ACTIVITY_TYPES, COMPANY_TYPES, MANAGEMENT
 from .database import get_db
-from .models import Activity, AppSession, Artifact, AuditEvent, CommercialSetting, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PartnerInvolvement, PreSalesRequest, Pursuit, PursuitAction, PursuitContact, TeamRole, User, ValueHistory, WorkingCalendar, WorkspaceReference
+from .models import Activity, AppSession, Artifact, AuditEvent, CommercialSetting, Company, Contact, ExchangeRate, Lead, Notification, Opportunity, PartnerInvolvement, PreSalesContributor, PreSalesRequest, Pursuit, PursuitAction, PursuitContact, TeamRole, User, ValueHistory, WorkingCalendar, WorkspaceReference
 from .references import contract as reference_contract, probability as stage_probability, require_code
 from .schemas import ActivityInput, ArtifactInput, CompanyInput, CompanyPatch, ContactInput, ContactPatch, ConversionInput, DisqualifyInput, LeadInput, LeadStatusInput, LoginInput, NurtureInput, OpportunityPatch, ProbabilityInput, RequestInput, RequestPatch, RestrictionInput, StageInput, TeamInput, ValueInput, WorkInput
 from .security import current_user, delete_session, hash_token, new_session, set_session_cookie, verify_password
@@ -108,7 +109,7 @@ def bootstrap(db: Session = Depends(get_db), user: User = Depends(current_user),
     pursuits = db.scalars(scoped(db, Pursuit, user).options(*user_options())).unique().all()
     leads = [item.lead for item in pursuits if item.lead]
     opportunities = [item.opportunity for item in pursuits if item.opportunity]
-    requests = db.scalars(scoped(db, PreSalesRequest, user).options(selectinload(PreSalesRequest.assigned_to), selectinload(PreSalesRequest.opportunity).selectinload(Opportunity.pursuit))).all()
+    requests = db.scalars(scoped(db, PreSalesRequest, user).options(*request_options())).unique().all()
     activity_rows = db.scalars(scoped(db, Activity, user).options(selectinload(Activity.company), selectinload(Activity.created_by), selectinload(Activity.pursuit).selectinload(Pursuit.opportunity)).order_by(Activity.activity_date.desc()).limit(100)).all()
     activities = [item for item in activity_rows if not item.pursuit or not item.pursuit.opportunity or can_value(db, user, item.pursuit.opportunity)][:50]
     notifications = db.scalars(scoped(db, Notification, user).where(Notification.recipient_id == user.id).order_by(Notification.created_at.desc()).limit(50)).all()
@@ -478,38 +479,262 @@ def timeline(identifier: UUID, db: Session = Depends(get_db), user: User = Depen
     return {"activities": [out.activity(item) for item in activities], "events": [{"id": str(event.id), "action": event.action, "detail": event.detail, "date": event.created_at, "author": event.created_by.display_name if event.created_by else "System"} for event in events], "completed_actions": [out.completed_action(item) for item in actions], "artifacts": [{"id": str(item.id), "title": item.title, "type": item.artifact_type, "url": item.storage_link, "version": item.version, "internal_only": item.internal_only, "approved": bool(item.approved_by_id), "shared_at": item.shared_at} for item in artifacts]}
 
 
+PRESALES_TRANSITIONS = {
+    "Requested": {"Clarification required", "Accepted", "Cancelled"},
+    "Clarification required": {"Requested", "Accepted", "Cancelled"},
+    "Accepted": {"In progress", "Blocked", "Cancelled"},
+    "In progress": {"Ready for review", "Blocked", "Cancelled"},
+    "Ready for review": {"In progress", "Approved to share", "Blocked", "Cancelled"},
+    "Approved to share": {"In progress", "Delivered", "Cancelled"},
+    "Blocked": {"Accepted", "In progress", "Cancelled"},
+    "Delivered": set(),
+    "Cancelled": set(),
+}
+
+
+def presales_head(user: User) -> bool:
+    title = user.job_title.casefold().replace("-", " ")
+    return user.level in {"Executive", "Administrator"} or "head of pre sales" in title or "head of presales" in title
+
+
+def request_options() -> tuple:
+    return (
+        selectinload(PreSalesRequest.opportunity).selectinload(Opportunity.pursuit),
+        selectinload(PreSalesRequest.requested_by), selectinload(PreSalesRequest.assigned_to),
+        selectinload(PreSalesRequest.approved_by), selectinload(PreSalesRequest.deliverable_artifact),
+        selectinload(PreSalesRequest.contributors).selectinload(PreSalesContributor.user),
+    )
+
+
+def load_request(db: Session, user: User, identifier: UUID, *, lock: bool = False) -> PreSalesRequest:
+    statement = scoped(db, PreSalesRequest, user).where(PreSalesRequest.id == identifier).options(*request_options())
+    if lock and db.bind and db.bind.dialect.name != "sqlite":
+        statement = statement.with_for_update()
+    item = db.scalar(statement)
+    if not item:
+        raise http_error(404, "Pre-sales request not found.")
+    return item
+
+
+def assign_tech_lead(db: Session, user: User, item: PreSalesRequest, assignee: User | None) -> None:
+    item.assigned_to_id = assignee.id if assignee else None
+    if not assignee:
+        return
+    pursuit = item.opportunity.pursuit
+    role = db.scalar(scoped(db, TeamRole, user).where(TeamRole.pursuit_id == pursuit.id, TeamRole.role == "Tech lead"))
+    if role:
+        role.user_id, role.updated_by_id = assignee.id, user.id
+    else:
+        db.add(TeamRole(**stamp(user), pursuit_id=pursuit.id, user_id=assignee.id, role="Tech lead"))
+
+
+def request_permissions(db: Session, user: User, item: PreSalesRequest) -> dict:
+    assigned = item.assigned_to_id == user.id
+    approver = user.level in MANAGEMENT
+    can_assign = presales_head(user)
+    allowed = set(PRESALES_TRANSITIONS.get(item.status, set()))
+    if not assigned:
+        allowed -= {"Clarification required", "Accepted", "In progress", "Ready for review", "Blocked", "Delivered"}
+    if not approver:
+        allowed.discard("Approved to share")
+    if not (approver or item.requested_by_id == user.id):
+        allowed.discard("Cancelled")
+    return {"can_assign": can_assign, "can_add_contributors": assigned or can_assign, "can_edit_brief": assigned or item.requested_by_id == user.id or approver, "can_approve": approver, "allowed_transitions": sorted(allowed)}
+
+
 @router.post("/requests/", status_code=201)
 def create_request(payload: RequestInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    opportunity = load_opportunity(db, user, payload.opportunity); require_work(db, user, opportunity.pursuit)
-    is_presales_owner = db.scalar(scoped(db, TeamRole, user).where(TeamRole.pursuit_id == opportunity.pursuit_id, TeamRole.user_id == user.id, TeamRole.role == "Pre-sales owner"))
-    if user.level not in MANAGEMENT and not is_presales_owner: raise http_error(403, "Management or the pre-sales owner assigns requests.")
-    assignee = tenant_user(db, user, payload.assigned_to)
-    item = PreSalesRequest(**stamp(user), opportunity_id=opportunity.id, assigned_to_id=assignee.id, **payload.model_dump(exclude={"opportunity", "assigned_to"}))
+    opportunity = load_opportunity(db, user, payload.opportunity)
+    require_work(db, user, opportunity.pursuit)
+    is_owner = db.scalar(scoped(db, TeamRole, user).where(TeamRole.pursuit_id == opportunity.pursuit_id, TeamRole.user_id == user.id, TeamRole.role == "Pre-sales owner"))
+    if user.level not in MANAGEMENT and not is_owner:
+        raise http_error(403, "Management or the pre-sales owner creates requests.")
+    if payload.needed_by < date.today():
+        raise http_error(422, {"needed_by": "Needed-by date cannot be in the past."})
+    if payload.customer_meeting_date and payload.customer_meeting_date < date.today():
+        raise http_error(422, {"customer_meeting_date": "Customer meeting date cannot be in the past."})
+    assignee = tenant_user(db, user, payload.assigned_to) if payload.assigned_to else None
+    if assignee and not presales_head(user):
+        raise http_error(403, "The Head of Pre-Sales assigns the tech lead.")
+    values = payload.model_dump(exclude={"opportunity", "assigned_to"})
+    item = PreSalesRequest(**stamp(user), opportunity_id=opportunity.id, requested_by_id=user.id, assigned_to_id=None, **values)
+    item.opportunity = opportunity
     db.add(item)
-    if not db.scalar(scoped(db, TeamRole, user).where(TeamRole.pursuit_id == opportunity.pursuit_id, TeamRole.user_id == assignee.id, TeamRole.role == "Supporting contributor")):
-        db.add(TeamRole(**stamp(user), pursuit_id=opportunity.pursuit_id, user_id=assignee.id, role="Supporting contributor"))
-    audit(db, user, "Pre-sales requested", opportunity.pursuit, item.title); db.commit()
-    item = db.scalar(scoped(db, PreSalesRequest, user).where(PreSalesRequest.id == item.id).options(selectinload(PreSalesRequest.assigned_to), selectinload(PreSalesRequest.opportunity).selectinload(Opportunity.pursuit)))
-    return out.request(item)
+    if assignee:
+        assign_tech_lead(db, user, item, assignee)
+    audit(db, user, "Pre-sales requested", opportunity.pursuit, item.title, after={"assigned_to_id": item.assigned_to_id})
+    db.commit()
+    return out.request(load_request(db, user, item.id))
 
 
 @router.patch("/requests/{identifier}/")
 def update_request(identifier: UUID, payload: RequestPatch, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    item = db.scalar(scoped(db, PreSalesRequest, user).where(PreSalesRequest.id == identifier).options(selectinload(PreSalesRequest.opportunity).selectinload(Opportunity.pursuit), selectinload(PreSalesRequest.assigned_to)))
-    if not item: raise http_error(404, "Record not found.")
-    require_work(db, user, item.opportunity.pursuit)
-    if item.assigned_to_id != user.id and user.level not in MANAGEMENT: raise http_error(403, "Only the assignee or management can update this request.")
-    require_code(db, user, "request_statuses", payload.status, "status")
-    if payload.status == "Approved to share" and user.level not in MANAGEMENT: raise http_error(403, "Manager approval is required.")
-    if payload.status == "Delivered":
-        if item.status != "Approved to share": raise http_error(422, "Obtain approval before delivery.")
-        if payload.actual_days is None: raise http_error(422, {"actual_days": "Actual days are required at delivery."})
-        item.actual_days = payload.actual_days
-    if payload.status == "Blocked":
-        if not payload.blocked_reason: raise http_error(422, {"blocked_reason": "Explain the blocker."})
+    item = load_request(db, user, identifier, lock=True)
+    pursuit = item.opportunity.pursuit
+    require_work(db, user, pursuit)
+    if payload.version != item.version:
+        raise http_error(409, "This pre-sales request changed. Refresh before saving.")
+    if item.status in {"Delivered", "Cancelled"}:
+        raise http_error(422, "Delivered and cancelled requests are closed.")
+    changed = payload.model_fields_set
+    before = {"status": item.status, "assigned_to_id": item.assigned_to_id, "version": item.version}
+
+    if "assigned_to" in changed:
+        if not presales_head(user):
+            raise http_error(403, "The Head of Pre-Sales assigns the tech lead.")
+        assignee = tenant_user(db, user, payload.assigned_to) if payload.assigned_to else None
+        assign_tech_lead(db, user, item, assignee)
+
+    if "supporting_contributor_ids" in changed:
+        if item.assigned_to_id != user.id and not presales_head(user):
+            raise http_error(403, "The assigned tech lead adds supporting contributors.")
+        contributor_ids = set(payload.supporting_contributor_ids or [])
+        contributor_ids.discard(item.assigned_to_id)
+        people = db.scalars(select(User).where(User.tenant_id == user.tenant_id, User.id.in_(contributor_ids), User.is_active.is_(True))).all() if contributor_ids else []
+        if len(people) != len(contributor_ids):
+            raise http_error(422, {"supporting_contributor_ids": "Choose active users in this workspace."})
+        existing = {row.user_id: row for row in item.contributors}
+        for row in item.contributors:
+            row.is_deleted = row.user_id not in contributor_ids
+            row.updated_by_id = user.id
+        for person in people:
+            if person.id in existing:
+                existing[person.id].is_deleted = False
+            else:
+                db.add(PreSalesContributor(**stamp(user), request_id=item.id, user_id=person.id))
+            if not db.scalar(scoped(db, TeamRole, user).where(TeamRole.pursuit_id == pursuit.id, TeamRole.user_id == person.id, TeamRole.role == "Supporting contributor")):
+                db.add(TeamRole(**stamp(user), pursuit_id=pursuit.id, user_id=person.id, role="Supporting contributor"))
+
+    if "deliverable_artifact_id" in changed:
+        if user.id not in {item.requested_by_id, item.assigned_to_id} and user.level not in MANAGEMENT:
+            raise http_error(403, "Only the requester, assigned tech lead or management can link the deliverable.")
+        artifact = get_scoped(db, Artifact, user, payload.deliverable_artifact_id) if payload.deliverable_artifact_id else None
+        if artifact and artifact.pursuit_id != pursuit.id:
+            raise http_error(422, {"deliverable_artifact_id": "Choose an artifact from this opportunity."})
+        item.deliverable_artifact_id = artifact.id if artifact else None
+    editable_fields = {"needed_by", "customer_meeting_date", "estimated_days", "notes"}
+    if changed & editable_fields and user.id not in {item.requested_by_id, item.assigned_to_id} and user.level not in MANAGEMENT:
+        raise http_error(403, "Only the requester, assigned tech lead or management can edit the brief.")
+    if "needed_by" in changed and payload.needed_by is None:
+        raise http_error(422, {"needed_by": "Needed-by date is required."})
+    if "estimated_days" in changed and payload.estimated_days is None:
+        raise http_error(422, {"estimated_days": "Estimated days are required."})
+    if "notes" in changed and payload.notes is None:
+        raise http_error(422, {"notes": "Notes cannot be null."})
+    for field in ("needed_by", "customer_meeting_date", "estimated_days", "notes"):
+        if field in changed:
+            setattr(item, field, getattr(payload, field))
+    if item.needed_by < date.today():
+        raise http_error(422, {"needed_by": "Needed-by date cannot be moved into the past."})
+
+    if payload.status and payload.status != item.status:
+        require_code(db, user, "request_statuses", payload.status, "status")
+        if payload.status not in PRESALES_TRANSITIONS[item.status]:
+            raise http_error(422, {"status": f"{item.status} cannot move directly to {payload.status}."})
+        if payload.status == "Requested" and user.id != item.requested_by_id and user.level not in MANAGEMENT:
+            raise http_error(403, "The requester or management returns clarified work to Requested.")
+        if payload.status == "Cancelled" and user.id != item.requested_by_id and user.level not in MANAGEMENT:
+            raise http_error(403, "The requester or management cancels this request.")
+        if not item.assigned_to_id and payload.status not in {"Cancelled"}:
+            raise http_error(422, {"assigned_to": "The Head of Pre-Sales must assign a tech lead first."})
+        if payload.status in {"Clarification required", "Accepted", "In progress", "Ready for review", "Blocked", "Delivered"} and item.assigned_to_id != user.id:
+            raise http_error(403, "The assigned tech lead owns this transition.")
+        if payload.status == "Approved to share" and user.level not in MANAGEMENT:
+            raise http_error(403, "Manager approval is required.")
+        if payload.status in {"Ready for review", "Approved to share", "Delivered"} and not item.deliverable_artifact_id:
+            raise http_error(422, {"deliverable_artifact_id": "Link the deliverable before review or sharing."})
+        if payload.status == "Blocked" and not payload.blocked_reason:
+            raise http_error(422, {"blocked_reason": "Explain the blocker."})
+        if payload.status == "Approved to share":
+            artifact = get_scoped(db, Artifact, user, item.deliverable_artifact_id)
+            if artifact.internal_only:
+                raise http_error(422, {"deliverable_artifact_id": "An internal-only artifact cannot be approved for client sharing."})
+            if not payload.review_note:
+                raise http_error(422, {"review_note": "Record the manager review evidence."})
+            item.approved_by_id, item.approved_at = user.id, datetime.now(timezone.utc)
+            item.review_note, artifact.approved_by_id = payload.review_note, user.id
+        if payload.status == "Delivered":
+            if payload.actual_days is None:
+                raise http_error(422, {"actual_days": "Actual days are required at delivery."})
+            item.actual_days, item.delivered_at = payload.actual_days, datetime.now(timezone.utc)
+            artifact = get_scoped(db, Artifact, user, item.deliverable_artifact_id)
+            artifact.shared_at = datetime.now(timezone.utc)
+        if payload.status == "Accepted" and not item.accepted_at:
+            item.accepted_at = datetime.now(timezone.utc)
+        if payload.status == "Ready for review":
+            item.review_ready_at = datetime.now(timezone.utc)
+        item.blocked_reason = payload.blocked_reason if payload.status == "Blocked" else ""
+        item.status = payload.status
+    elif item.status == "Blocked" and "blocked_reason" in changed:
+        if item.assigned_to_id != user.id and user.level not in MANAGEMENT:
+            raise http_error(403, "The assigned tech lead or management updates the blocker.")
+        if not payload.blocked_reason:
+            raise http_error(422, {"blocked_reason": "Explain the blocker."})
         item.blocked_reason = payload.blocked_reason
-    item.status = payload.status; audit(db, user, "Pre-sales status changed", item.opportunity.pursuit, f"{item.title}: {payload.status}"); db.commit()
-    return out.request(item)
+
+    item.version += 1
+    item.updated_by_id = user.id
+    audit(db, user, "Pre-sales request updated", pursuit, f"{item.title}: {item.status}", before=before, after={"status": item.status, "assigned_to_id": item.assigned_to_id, "version": item.version})
+    db.commit()
+    return out.request(load_request(db, user, item.id))
+
+
+@router.get("/requests/{identifier}/")
+def request_detail(identifier: UUID, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    item = load_request(db, user, identifier)
+    return {**out.request(item), **request_permissions(db, user, item)}
+
+
+@router.get("/presales/queue/")
+def presales_queue(owner_id: int | None = None, status_filter: str = "open", week: date | None = None, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    week_start = (week or date.today()) - timedelta(days=(week or date.today()).weekday())
+    week_end = week_start + timedelta(days=6)
+    statement = scoped(db, PreSalesRequest, user).options(*request_options()).order_by(PreSalesRequest.needed_by, PreSalesRequest.created_at)
+    if owner_id:
+        statement = statement.where(PreSalesRequest.assigned_to_id == owner_id)
+    if status_filter == "open":
+        statement = statement.where(PreSalesRequest.status.notin_(["Delivered", "Cancelled"]))
+    elif status_filter != "all":
+        require_code(db, user, "request_statuses", status_filter, "status_filter")
+        statement = statement.where(PreSalesRequest.status == status_filter)
+    rows = list(db.scalars(statement).unique().all())
+    weekly = list(db.scalars(scoped(db, PreSalesRequest, user).where(PreSalesRequest.needed_by.between(week_start, week_end), PreSalesRequest.status.notin_(["Delivered", "Cancelled"])).options(*request_options())).unique().all())
+    assigned_days, request_count, support_count = defaultdict(Decimal), defaultdict(int), defaultdict(int)
+    involved = set()
+    for request in weekly:
+        if request.assigned_to_id:
+            assigned_days[request.assigned_to_id] += request.estimated_days
+            request_count[request.assigned_to_id] += 1
+            involved.add(request.assigned_to_id)
+        for contributor in request.contributors:
+            if not contributor.is_deleted:
+                support_count[contributor.user_id] += 1
+                involved.add(contributor.user_id)
+    people = db.scalars(select(User).where(User.tenant_id == user.tenant_id, User.is_active.is_(True)).order_by(User.first_name, User.last_name)).all()
+    load = []
+    for person in people:
+        if person.id not in involved and not any(word in person.job_title.casefold() for word in ("pre-sales", "presales", "technical")):
+            continue
+        capacity = person.weekly_capacity_days
+        days = assigned_days[person.id]
+        load.append({"user_id": person.id, "name": person.display_name, "job_title": person.job_title, "capacity_days": str(capacity), "assigned_days": str(days), "request_count": request_count[person.id], "supporting_requests": support_count[person.id], "utilization_pct": str((days / capacity * 100).quantize(Decimal("0.1"))) if capacity else None, "over_capacity": days > capacity})
+    return {"week_start": week_start, "week_end": week_end, "requests": [{**out.request(item), **request_permissions(db, user, item)} for item in rows], "team_load": load}
+
+
+@router.get("/presales/cost-report/")
+def presales_cost_report(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if user.level not in MANAGEMENT:
+        raise http_error(403, "Management access is required for pre-sales cost analysis.")
+    rows = db.scalars(scoped(db, PreSalesRequest, user).where(PreSalesRequest.status == "Delivered", PreSalesRequest.actual_days.is_not(None)).options(*request_options())).unique().all()
+    groups = {"request_type": defaultdict(lambda: [0, Decimal("0")]), "service_line": defaultdict(lambda: [0, Decimal("0")]), "outcome": defaultdict(lambda: [0, Decimal("0")])}
+    for item in rows:
+        outcome = item.opportunity.stage if item.opportunity.stage in {"won", "lost"} else "open"
+        for dimension, key in (("request_type", item.request_type), ("service_line", item.opportunity.service_line), ("outcome", outcome)):
+            groups[dimension][key][0] += 1
+            groups[dimension][key][1] += item.actual_days or Decimal("0")
+    def result(name: str):
+        return [{"key": key, "request_count": values[0], "actual_days": str(values[1])} for key, values in sorted(groups[name].items())]
+    return {"delivered_requests": len(rows), "actual_days": str(sum((item.actual_days or Decimal("0") for item in rows), Decimal("0"))), "by_request_type": result("request_type"), "by_service_line": result("service_line"), "by_outcome": result("outcome")}
 
 
 @router.post("/artifacts/", status_code=201)

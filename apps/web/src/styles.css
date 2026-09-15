@@ -3893,6 +3893,111 @@ td small {
   grid-template-columns: 1fr 1fr;
   gap: 28px;
 }
+.checkbox-fieldset {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.checkbox-fieldset legend {
+  margin-bottom: 7px;
+  font-weight: 700;
+}
+.checkbox-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #f8fafc;
+}
+.checkbox-options label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 500;
+}
+.presales-capacity-panel {
+  margin-bottom: 18px;
+}
+.inline-filter,
+.presales-filter-bar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.inline-filter input,
+.presales-filter-bar select {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  padding: 7px 9px;
+}
+.capacity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.capacity-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #f8fafc;
+}
+.capacity-card.over {
+  border-color: #e4aa49;
+  background: #fff9e9;
+}
+.capacity-card > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.capacity-card > small {
+  color: var(--muted);
+}
+.capacity-card > div {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #dfe5ec;
+}
+.capacity-card > div i {
+  display: block;
+  height: 100%;
+  background: var(--yellow);
+}
+.capacity-card.over > div i {
+  background: #d47d29;
+}
+.presales-filter-bar {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.presales-filter-bar label {
+  flex-direction: column;
+  align-items: stretch;
+}
+.presales-filter-bar > span {
+  margin-left: auto;
+  color: var(--muted);
+}
+.presales-cost-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 26px;
+}
 @media (max-width: 760px) {
   .commercial-summary {
     grid-template-columns: 1fr 1fr;
@@ -3910,5 +4015,17 @@ td small {
   }
   .movement-summary {
     grid-template-columns: 1fr;
+  }
+  .capacity-grid,
+  .presales-cost-grid,
+  .checkbox-options {
+    grid-template-columns: 1fr;
+  }
+  .presales-filter-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .presales-filter-bar > span {
+    margin-left: 0;
   }
 }

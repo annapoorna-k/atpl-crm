@@ -292,7 +292,7 @@ class RequestInput(Input):
     opportunity: UUID
     title: str = Field(min_length=1, max_length=180)
     request_type: str = Field("Deck", max_length=60)
-    assigned_to: int
+    assigned_to: int | None = None
     needed_by: date
     customer_meeting_date: date | None = None
     estimated_days: Decimal = Field(0, ge=0)
@@ -300,9 +300,18 @@ class RequestInput(Input):
 
 
 class RequestPatch(Input):
-    status: str
+    version: int = Field(ge=1)
+    status: str | None = None
+    assigned_to: int | None = None
+    supporting_contributor_ids: list[int] | None = None
+    needed_by: date | None = None
+    customer_meeting_date: date | None = None
+    estimated_days: Decimal | None = Field(None, ge=0)
+    notes: str | None = None
     actual_days: Decimal | None = Field(None, ge=0)
     blocked_reason: str = ""
+    deliverable_artifact_id: UUID | None = None
+    review_note: str = ""
 
 
 class ArtifactInput(Input):
@@ -321,6 +330,7 @@ class AdminUserInput(Input):
     job_title: str = Field("", max_length=100)
     level: Literal["Standard", "Manager", "Executive", "Administrator"] = "Standard"
     password: str = Field(min_length=12, max_length=200)
+    weekly_capacity_days: Decimal = Field(5, ge=0, le=7, max_digits=5, decimal_places=1)
 
 
 class AdminUserPatch(Input):
@@ -331,6 +341,7 @@ class AdminUserPatch(Input):
     level: Literal["Standard", "Manager", "Executive", "Administrator"] | None = None
     is_active: bool | None = None
     password: str | None = Field(None, min_length=12, max_length=200)
+    weekly_capacity_days: Decimal | None = Field(None, ge=0, le=7, max_digits=5, decimal_places=1)
 
 
 class ReferenceInput(Input):

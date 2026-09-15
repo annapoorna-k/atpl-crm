@@ -25,8 +25,8 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-58–60 | Rate changes/refresh/bulk re-baseline | Implemented | individual fixed-rate history, admin table override, confirmed selected-open-deal re-baseline, monthly published-source adapter and failure/movement alerts; connected source configuration remains an environment acceptance item |
 | FR-65–68 | Partner terms/net value/warnings/report | Implemented | multi-partner UI/API, conditional terms validation, reproducible net calculation, configurable ceiling and undocumented-terms report |
 | FR-69 | Partner performance | Implemented | management report for introduced/involved opportunities, win rate and net won value |
-| FR-75–80 | Pre-sales queue/request lifecycle/approval/effort | Partial | initial creation/status/assignee/effort; complete approvals and weekly load pending |
-| FR-81 | Pre-sales cost | Planned | — |
+| FR-75–80 | Pre-sales queue/request lifecycle/approval/effort | Implemented | governed creation and Head assignment, tech-lead acceptance/contributors, nine-state transitions, evidence-backed Manager approval, actual effort and weekly owner/load view |
+| FR-81 | Pre-sales cost | Implemented | management report groups delivered actual days by request type, service line and won/lost/open outcome |
 | FR-85 | Artifact attachments | Partial | secure document links only |
 | FR-86–92 | Outlook linking, sharing register, versions, library | Planned | — |
 | FR-95–96 | My Work / Needs Attention | Implemented | server-backed action, blocker and deliverable queues plus all specified exception categories in notifications.py and App.tsx |

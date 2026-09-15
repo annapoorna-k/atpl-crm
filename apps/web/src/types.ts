@@ -7,6 +7,7 @@ export interface Person {
   job_title: string;
   email: string;
   active: boolean;
+  weekly_capacity_days: string;
 }
 export interface AdminReference {
   id: string;
@@ -202,9 +203,14 @@ export interface Request {
   title: string;
   request_type: string;
   status: string;
+  version: number;
+  requested_at: string;
+  requested_by: string;
+  requested_by_id: number;
   assigned_to: string;
-  assigned_to_id: number;
+  assigned_to_id: number | null;
   needed_by: string;
+  customer_meeting_date: string | null;
   estimated_days: string;
   actual_days: string | null;
   opportunity: string;
@@ -212,6 +218,53 @@ export interface Request {
   pursuit_id: string;
   notes: string;
   blocked_reason: string;
+  review_note: string;
+  deliverable_artifact_id: string | null;
+  deliverable_artifact: string | null;
+  approved_by: string | null;
+  accepted_at: string | null;
+  review_ready_at: string | null;
+  approved_at: string | null;
+  delivered_at: string | null;
+  contributors: { id: number; name: string }[];
+  can_assign?: boolean;
+  can_add_contributors?: boolean;
+  can_edit_brief?: boolean;
+  can_approve?: boolean;
+  allowed_transitions?: string[];
+}
+
+export interface PreSalesQueue {
+  week_start: string;
+  week_end: string;
+  requests: Request[];
+  team_load: {
+    user_id: number;
+    name: string;
+    job_title: string;
+    capacity_days: string;
+    assigned_days: string;
+    request_count: number;
+    supporting_requests: number;
+    utilization_pct: string | null;
+    over_capacity: boolean;
+  }[];
+}
+
+export interface PreSalesCostReport {
+  delivered_requests: number;
+  actual_days: string;
+  by_request_type: {
+    key: string;
+    request_count: number;
+    actual_days: string;
+  }[];
+  by_service_line: {
+    key: string;
+    request_count: number;
+    actual_days: string;
+  }[];
+  by_outcome: { key: string; request_count: number; actual_days: string }[];
 }
 export interface Data {
   user: Person;

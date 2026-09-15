@@ -34,6 +34,7 @@ class User(Base):
     date_joined: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     level: Mapped[str] = mapped_column(String(20), default="Standard")
     job_title: Mapped[str] = mapped_column(String(100), default="")
+    weekly_capacity_days: Mapped[Decimal] = mapped_column(Numeric(5, 1), default=5)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_tenant.id", ondelete="RESTRICT"), nullable=True)
     tenant: Mapped[Tenant | None] = relationship()
 
@@ -337,16 +338,38 @@ class PreSalesRequest(RecordMixin, Base):
     opportunity_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_opportunity.id", ondelete="RESTRICT"))
     title: Mapped[str] = mapped_column(String(180))
     request_type: Mapped[str] = mapped_column(String(60), default="Deck")
-    assigned_to_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"))
-    status: Mapped[str] = mapped_column(String(40), default="Requested")
-    needed_by: Mapped[date] = mapped_column(Date)
+    requested_by_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"), index=True)
+    assigned_to_id: Mapped[int | None] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(40), default="Requested", index=True)
+    needed_by: Mapped[date] = mapped_column(Date, index=True)
     customer_meeting_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     estimated_days: Mapped[Decimal] = mapped_column(Numeric(7, 1), default=0)
     actual_days: Mapped[Decimal | None] = mapped_column(Numeric(7, 1), nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
     blocked_reason: Mapped[str] = mapped_column(Text, default="")
+    deliverable_artifact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("crm_artifact.id", ondelete="RESTRICT"), nullable=True)
+    review_note: Mapped[str] = mapped_column(Text, default="")
+    approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"), nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    review_ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
     opportunity: Mapped[Opportunity] = relationship()
-    assigned_to: Mapped[User] = relationship(foreign_keys=[assigned_to_id])
+    requested_by: Mapped[User] = relationship(foreign_keys=[requested_by_id])
+    assigned_to: Mapped[User | None] = relationship(foreign_keys=[assigned_to_id])
+    approved_by: Mapped[User | None] = relationship(foreign_keys=[approved_by_id])
+    deliverable_artifact: Mapped[Artifact | None] = relationship(foreign_keys=[deliverable_artifact_id])
+    contributors: Mapped[list[PreSalesContributor]] = relationship(back_populates="request", cascade="all, delete-orphan")
+
+
+class PreSalesContributor(RecordMixin, Base):
+    __tablename__ = "crm_presalescontributor"
+    __table_args__ = (UniqueConstraint("request_id", "user_id", name="crm_presalescontributor_request_user_uniq"),)
+    request_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("crm_presalesrequest.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="RESTRICT"), index=True)
+    request: Mapped[PreSalesRequest] = relationship(back_populates="contributors")
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
 
 
 class PartnerInvolvement(RecordMixin, Base):

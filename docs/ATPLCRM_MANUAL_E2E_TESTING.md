@@ -39,7 +39,7 @@ This handbook tests what exists in **v0.7**. The following items are planned or 
 | Imports | CSV up to 5,000 rows; Excel, background jobs, fuzzy matching and field-by-field merge choice are planned. |
 | Documents | Secure HTTPS links only; file upload, Outlook/email linking, sharing register and version supersession are planned. |
 | Commercial | Stored currency/rate and value history work; rate refresh, re-baseline, full partner UI and complete close/handoff fields are pending. |
-| Pre-sales | Assignment, status, effort and approval-to-share gate work; contributor capacity, full review evidence and costing are pending. |
+| Pre-sales | Complete assignment, nine-state lifecycle, contributors, review/share evidence, effort, weekly capacity and cost reporting work locally. |
 | Reports | Current overview, pipeline, lead distribution, calendar-aware lifecycle and stage-movement reports and forecast CSV work; historical funnels and other advanced reports are pending. |
 | AI | No AI provider or simulated AI feature exists in v0.7. |
 | Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.7. |
@@ -600,30 +600,37 @@ Follow one record through lead creation, first outbound contact, Ready, validati
 
 ### PRE-01 — Create request
 
-As management or assigned Pre-sales owner, create a request with opportunity, title, type, assignee, needed-by date, meeting date, estimate and notes. Try as unrelated Standard user.
+As management or the assigned Pre-sales owner, create a request with opportunity, title, type, needed-by date, meeting date, estimate and notes. Create it as Head of Pre-Sales with a tech lead, and as another authorized requester without assigning. Try assigning as Head of Sales and as Head of Pre-Sales.
 
-**Expected:** authorized request appears in the queue and assignee’s My Work; assignee is added as Supporting contributor; unrelated Standard user is refused.
+**Expected:** authorized creation succeeds; unassigned work stays visible; only Head of Pre-Sales, Executive or Administrator can assign the tech lead; assignment updates the pursuit Tech lead role and the assignee’s My Work; unrelated Standard user is refused.
 **Actual/result:** ______________________________________________________________________
 
 ### PRE-02 — Request queue
 
-Verify Open requests, Ready for review and Past due metrics; search using the page header and open a row.
+Verify Open requests, Ready for review and Past due metrics; filter by tech lead and every status, search, and open a row. Select several weeks in Weekly team load and change a user’s weekly capacity as Administrator.
 
-**Expected:** status/date metrics and visible rows agree; title, opportunity, assignee, status, needed-by and estimate are correct.
+**Expected:** status/date metrics and filtered rows agree; title, opportunity, requester, tech lead, contributors, evidence, dates and effort are correct; load shows owned estimates and supporting commitments against configured capacity, including an over-capacity warning.
 **Actual/result:** ______________________________________________________________________
 
 ### PRE-03 — Status updates and ownership
 
-As assignee, move through Requested, Clarification required, Accepted, In progress, Ready for review, Blocked and Cancelled. Try updating another assignee’s request as Standard.
+As the assigned tech lead, exercise each allowed path through Requested, Clarification required, Accepted, In progress, Ready for review, Blocked and Cancelled. Add and remove supporting contributors. Attempt a skipped, backwards-invalid, terminal and stale-version transition.
 
-**Expected:** assignee/management can update; unrelated Standard user is refused; Blocked requires a reason. Every change appears in the pursuit Timeline.
+**Expected:** only allowed adjacent transitions appear; the tech lead owns acceptance/progress and contributors; requester/management controls cancellation and clarification return; Blocked requires a reason; terminal requests cannot change; stale saves conflict; every change is audited.
 **Actual/result:** ______________________________________________________________________
 
 ### PRE-04 — Approval and delivery gate
 
-As Standard assignee, attempt Approved to share and Delivered. As Manager, approve; then deliver with and without actual effort.
+As the tech lead, attempt Ready for review without evidence, then link an artifact. Attempt approval as Standard and with an internal-only artifact. As Manager, add review evidence and approve; then let the tech lead deliver with and without actual effort.
 
-**Expected:** management approval is required; Delivered is allowed only from Approved to share and requires actual days; delivered work leaves My Work.
+**Expected:** review requires linked deliverable evidence; client approval rejects internal-only evidence and requires a Manager plus review note; Delivered is allowed only from Approved to share and requires actual days; delivery marks the approved artifact shared, stores the share time and removes the work from My Work.
+**Actual/result:** ______________________________________________________________________
+
+### PRE-05 — Cost of pre-sales
+
+Deliver several request types across different opportunity service lines, then close some opportunities Won and Lost. As management, open Reports and compare Cost of pre-sales with request records. Repeat as Standard through the API.
+
+**Expected:** delivered-request count and actual days reconcile; groupings by request type, service line and Won/Lost/Open outcome reconcile; undelivered estimates are excluded; Standard report access is refused.
 **Actual/result:** ______________________________________________________________________
 
 ### DOC-01 — Evidence link register

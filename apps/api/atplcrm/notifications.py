@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from . import presenters as out
-from .api import user_options
+from .api import request_options, user_options
 from .database import get_db
 from .models import AutomationRun, Notification, NotificationPreference, Opportunity, PreSalesRequest, Pursuit, User
 from .calendar import tenant_calendar, working_days
@@ -80,7 +80,7 @@ def tenant_context(db: Session, tenant_id: UUID):
         return [], None, [], []
     system_user = next((user for user in users if user.level == "Administrator"), users[0])
     pursuits = db.scalars(select(Pursuit).where(Pursuit.tenant_id == tenant_id, Pursuit.is_deleted.is_(False)).options(*user_options())).unique().all()
-    requests = db.scalars(select(PreSalesRequest).where(PreSalesRequest.tenant_id == tenant_id, PreSalesRequest.is_deleted.is_(False)).options(selectinload(PreSalesRequest.assigned_to), selectinload(PreSalesRequest.opportunity).selectinload(Opportunity.pursuit))).all()
+    requests = db.scalars(select(PreSalesRequest).where(PreSalesRequest.tenant_id == tenant_id, PreSalesRequest.is_deleted.is_(False)).options(*request_options())).unique().all()
     return users, system_user, pursuits, requests
 
 
@@ -183,7 +183,7 @@ def record_run(db: Session, tenant_id: UUID, system_user: User, task_name: str, 
 def work_queues(db: Session = Depends(get_db), user: User = Depends(current_user)):
     pursuits = db.scalars(scoped(db, Pursuit, user).options(*user_options())).unique().all()
     active = [pursuit for pursuit in pursuits if active_pursuit(pursuit)]
-    requests = db.scalars(scoped(db, PreSalesRequest, user).options(selectinload(PreSalesRequest.assigned_to), selectinload(PreSalesRequest.opportunity).selectinload(Opportunity.pursuit))).all()
+    requests = db.scalars(scoped(db, PreSalesRequest, user).options(*request_options())).unique().all()
     today = date.today(); now = datetime.now(timezone.utc)
     mine = [pursuit for pursuit in active if pursuit.holder_id == user.id]
     my_work = {
