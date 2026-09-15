@@ -27,12 +27,12 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-69 | Partner performance | Implemented | management report for introduced/involved opportunities, win rate and net won value |
 | FR-75–80 | Pre-sales queue/request lifecycle/approval/effort | Implemented | governed creation and Head assignment, tech-lead acceptance/contributors, nine-state transitions, evidence-backed Manager approval, actual effort and weekly owner/load view |
 | FR-81 | Pre-sales cost | Implemented | management report groups delivered actual days by request type, service line and won/lost/open outcome |
-| FR-85 | Artifact attachments | Partial | secure document links only |
-| FR-86–92 | Outlook linking, sharing register, versions, library | Planned | — |
+| FR-85 | Artifact attachments | Implemented | private managed uploads and governed Microsoft 365 links in documents.py and DocumentCenter.tsx |
+| FR-86–92 | Outlook linking, sharing register, versions, library | Implemented | selected-email/attachment registration, approval, named sharing, registers, versions, reusable library and deployable Outlook package; connected tenant activation remains |
 | FR-95–96 | My Work / Needs Attention | Implemented | server-backed action, blocker and deliverable queues plus all specified exception categories in notifications.py and App.tsx |
-| FR-97–100 | Pipeline, forecast, lead funnel, drill-down | Partial | overview and basic tables; time filters and historical funnel pending |
-| FR-101 | Report/list exports | Partial | visible forecast CSV only; full server/Excel export pending |
-| FR-102–107 | Role dashboards and advanced reports | Partial | generic overview and seven-milestone bottleneck report exist; other role and advanced reports pending |
+| FR-97–100 | Pipeline, forecast, lead funnel, drill-down | Implemented | reporting.py and ReportsCenter.tsx provide server net pipeline, month/quarter weighted forecast excluding hold, lifecycle funnel and record drill-down with full filters |
+| FR-101 | Report/list exports | Implemented | governed server exports provide CSV and Excel for every management report and its filtered underlying-record dataset |
+| FR-102–107 | Role dashboards and advanced reports | Implemented | role home cards, seven-transition medians, blocker ageing, grouped outcomes/losses, value erosion, movement and five-part individual performance views |
 | FR-110–115 | AI assistance | Planned | no provider connected or simulated AI claims |
 | Section 13 | Exception notifications and alerts | Implemented | per-user preferences, configurable thresholds, recipient/escalation rules, durable history, 15-minute scans, Monday leadership summaries and automation failure monitoring |
 | NFR-01–10 | Hosting/security/backups/performance/residency/mobile/audit/observability/parity | Partial | local Compose, persistent volumes, guards, audit triggers, responsive layout and backup script; full acceptance remains pending |

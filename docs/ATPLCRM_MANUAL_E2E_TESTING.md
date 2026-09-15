@@ -1,6 +1,6 @@
-# ATPLCRM v0.13 Manual End-to-End Testing Handbook
+# ATPLCRM v0.14 Manual End-to-End Testing Handbook
 
-**Document purpose:** manually validate every function implemented through ATPLCRM v0.13 before starting another feature.
+**Document purpose:** manually validate every function implemented through ATPLCRM v0.14 before starting another feature.
 **Audience:** business testers, administrators, sales users, pre-sales users and release reviewers.
 **Execution date:** ____________________  **Tester:** ____________________  **Build/commit:** ____________________
 **Environment:** ☐ International  ☐ US  **Result:** ☐ Pass  ☐ Pass with observations  ☐ Fail
@@ -11,7 +11,7 @@
 
 ![ATPLCRM login](manual-testing/screenshots/01-login.png)
 
-ATPLCRM v0.13 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
+ATPLCRM v0.14 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
 
 ```mermaid
 flowchart LR
@@ -30,9 +30,9 @@ Every pursuit has one commercial owner, one Ball in Court holder, one next actio
 
 ## 2. Scope boundary
 
-This handbook tests what exists in **v0.13**. The following connected services still require Azure tenant configuration and must not be reported as local defects merely because the external service is absent:
+This handbook tests what exists in **v0.14**. The following connected services still require Azure tenant configuration and must not be reported as local defects merely because the external service is absent:
 
-| Area | Current v0.13 boundary |
+| Area | Current v0.14 boundary |
 |---|---|
 | Identity | Local password sign-in only; Microsoft Entra/OIDC is planned. |
 | Authorization | Current owner/team/management rules are testable; a fine-grained policy editor is planned. |
@@ -40,9 +40,9 @@ This handbook tests what exists in **v0.13**. The following connected services s
 | Documents | All local workflows are included. Azure Blob/SharePoint/Graph adapters and Outlook tenant deployment need Entra/Azure configuration; the in-app selected-email form tests the same registration endpoint locally. |
 | Commercial | Partner terms, net values, fixed exchange rates, rate refresh/re-baseline and close/handoff fields are included locally. |
 | Pre-sales | Complete assignment, nine-state lifecycle, contributors, review/share evidence, effort, weekly capacity and cost reporting work locally. |
-| Reports | Current overview, pipeline, lead distribution, calendar-aware lifecycle and stage-movement reports and forecast CSV work; historical funnels and other advanced reports are pending. |
-| AI | No AI provider or simulated AI feature exists in v0.13. |
-| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.13. |
+| Reports | Role home dashboards and complete filtered management analytics work locally, with record drill-down and CSV/Excel exports. Connected-scale reconciliation remains pending. |
+| AI | No AI provider or simulated AI feature exists in v0.14. |
+| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.14. |
 
 If a current control fails inside these boundaries, record a defect. If Azure tenant connectivity is unavailable, record the connected-only step as **Environment not configured** and still test its local API/UI equivalent.
 
@@ -765,53 +765,90 @@ Create records missing domain, industry, global-account region, email, phone, so
 
 ## 12. Reports and export
 
-### RPT-01 — Pipeline metrics
+Use records with known values, dates, sources, countries, owners, stages, blockers and outcomes. Recalculate a small sample independently before accepting totals.
 
-Compare Net pipeline and Weighted pipeline against visible open opportunities. Include Won, Lost, Hold and a restricted opportunity.
+### RPT-01 — Role-specific home dashboard
 
-**Expected:** open visible net values are counted; weighted amount uses the current probability; Won/Lost/Hold are excluded; hidden values do not leak.
+Sign in as Executive, Head of Sales, Head of Pre-Sales and Standard user. Select every role-view card, including cards with zero, one and several underlying records.
+
+**Expected:** each role receives four relevant figures; every card is selectable. A single record opens directly and a multi-record figure routes to the appropriate workspace. Values and record identifiers respect the signed-in user's permissions.
 **Actual/result:** ______________________________________________________________________
 
-### RPT-02 — Pipeline by stage
+### RPT-02 — Shared report filters
 
-Compare every stage bar/count/value to the Opportunity board and select the stage.
+On Reports, exercise 30 days, 90 days, one year, 24 months, all history and a custom range. Combine owner, service, source, country and opportunity type filters. Try an incomplete and reversed custom range.
 
-**Expected:** labels use current reference configuration; counts and visible values match; drill-through opens Opportunities.
+**Expected:** every visible report recalculates from the same filter set; the selected grouping is retained; invalid custom ranges are rejected clearly; clearing filters restores the unfiltered figures.
 **Actual/result:** ______________________________________________________________________
 
-### RPT-03 — Lead distribution
+### RPT-03 — Current net pipeline
 
-Compare lead status counts to the Lead board and select a status.
+Compare each stage count and net USD value with the filtered Opportunity records and partner terms. Include Won, Lost, Hold, unresolved partner terms and a restricted opportunity. Use the International local-currency display toggle on the legacy detail view and repeat in US.
 
-**Expected:** counts match the current status distribution and drill-through opens Leads. Treat it as a distribution, not historical conversion analysis.
+**Expected:** open stages, including Hold, appear in current pipeline; Won/Lost are absent; unresolved net values do not inflate totals; authoritative analytics remain net USD; US exposes USD only; restricted values do not leak.
 **Actual/result:** ______________________________________________________________________
 
-### RPT-04 — Lifecycle bottleneck report
+### RPT-04 — Monthly and quarterly weighted forecast
 
-For each of seven milestone tiles, verify record count, median working days, target and health indicator; select a tile.
+For several close dates and probabilities, independently calculate `net USD × probability`. Include Hold, Won and Lost opportunities and select month/quarter rows.
 
-**Expected:** exactly seven tiles display; values reflect stored timestamps and weekday calculations; drill-through lists matching records.
+**Expected:** monthly and quarter totals reconcile; Hold, Won and Lost are excluded; each row opens the exact contributing records regardless of the historical filter period.
 **Actual/result:** ______________________________________________________________________
 
-### RPT-04A — Historical pipeline movement
+### RPT-05 — Historical lead funnel
 
-As Manager/Executive/Administrator, select 30 days, 90 days, one year and all history. Compare common transitions, regression count, median time in the prior stage and current open-stage age with Timeline events. Try the endpoint as a Standard user.
+Create or locate Created, Worked, Engaged, Validated, Disqualified and Converted lead cohorts. Compare the lifecycle funnel and breakdowns by source and sourced user, then drill into each figure.
 
-**Expected:** periods filter stage-change events; working-day values honor the workspace calendar; backward moves are counted as regressions; Standard access is refused.
+**Expected:** stages are cumulative lifecycle achievements within the selected created-date cohort; source/user totals reconcile with their records; converted leads retain their original lead history; drill-down opens the exact pursuit.
 **Actual/result:** ______________________________________________________________________
 
-### RPT-05 — Forecast detail
+### RPT-06 — Seven-transition bottlenecks
 
-Compare record, company, stage, owner, close, probability and net USD with opportunity details. Test value restrictions with different roles.
+Check all seven transitions from Lead created through Closed using pursuits with known milestone dates. Change the working week/holiday calendar as Administrator and rerun.
 
-**Expected:** data is consistent and restricted rows/values remain protected.
+**Expected:** exactly seven rows appear; unconverted leads are included in early milestones; median elapsed working days exclude configured non-workdays and holidays; every count drills into its completed records.
 **Actual/result:** ______________________________________________________________________
 
-### RPT-06 — Forecast CSV export
+### RPT-07 — Blocker age and ownership
 
-Select **Export CSV**, open the file in a text editor and spreadsheet, and compare rows/totals. Include a test record beginning with `=`, `+`, `-` or `@` if possible.
+Add blockers to both leads and opportunities with different types, owners and start dates. Compare the type and owner views.
 
-**Expected:** visible forecast rows export; spreadsheet-formula prefixes are escaped; restricted data is absent; no HTML/error file is downloaded.
+**Expected:** only open pursuits are counted; count, median days and oldest days reconcile; both lead and opportunity blockers appear; each row drills into the matching records.
+**Actual/result:** ______________________________________________________________________
+
+### RPT-08 — Outcomes and loss distribution
+
+Group a known Won/Lost sample by service, source, country, opportunity type and owner. Check win rate, average net won deal size, median working-day cycle and every loss reason.
+
+**Expected:** only records closed in the selected date range contribute; all five groupings reconcile; loss reasons total to Lost records; zero-win groups show no misleading average; drill-down matches each aggregate.
+**Actual/result:** ______________________________________________________________________
+
+### RPT-09 — Value erosion
+
+For Won opportunities, record an Initial estimate and Final contract value. Test increases, decreases, multiple currencies and missing initial/final values; group by service and owner.
+
+**Expected:** server-side stored FX produces reproducible initial/final USD, erosion amount and percentage; only complete pairs contribute; grouped deal counts and drill-down records reconcile.
+**Actual/result:** ______________________________________________________________________
+
+### RPT-10 — Movement
+
+Within a known date window, validate opportunities, advance one, regress one, close one and move one expected close date later. Select Entered, Advanced, Regressed, Closed and Slipped.
+
+**Expected:** each pursuit is counted once per movement category for the selected dates; stage audit events and close-date before/after values support the classification; drill-down does not expose inaccessible records.
+**Actual/result:** ______________________________________________________________________
+
+### RPT-11 — Individual performance
+
+As management, compare every user across Leads generated, Opportunities owned, Pre-sales delivered, current Ball in Court and Blockers owned. Sign in as a Standard user and repeat.
+
+**Expected:** management sees the team; every number is selectable and reconciles with its records; Standard sees only their own row; active lead and opportunity handoffs/blockers both contribute where applicable.
+**Actual/result:** ______________________________________________________________________
+
+### RPT-12 — CSV, Excel and permission-safe drill-down
+
+From every report tab, export CSV and Excel after applying filters. Open both formats, compare headers/rows/totals and inspect a value beginning with `=`, `+`, `-` or `@`. Repeat around a restricted opportunity as assigned management/team and as an unrelated Standard user.
+
+**Expected:** the selected report dataset and filters are preserved; CSV opens as UTF-8 and dangerous spreadsheet prefixes are escaped; `.xlsx` opens as a valid workbook; hidden values and records are absent from figures, drill-downs and both exports.
 **Actual/result:** ______________________________________________________________________
 
 ## 13. Administrator testing
@@ -985,7 +1022,7 @@ Use this as the final completeness gate.
 | Pre-sales request/status/approval/effort and evidence links | PRE-01–05 | ☐ |
 | Upload/link/email artifacts, sharing register, versions and reusable library | DOC-01–08 | ☐ |
 | Global search, CSV templates/imports/errors/history, duplicates and quality | DATA-01–10 | ☐ |
-| Pipeline/funnel/lifecycle/forecast reports and CSV export | RPT-01–06 | ☐ |
+| Role dashboards, analytics, drill-down and CSV/Excel exports | RPT-01–12 | ☐ |
 | Users, access levels, reference data, probabilities and rates | ADMIN-01–09 | ☐ |
 | Cross-role/tenant authorization, audit, immutability, errors and accessibility | SEC-01–08 | ☐ |
 

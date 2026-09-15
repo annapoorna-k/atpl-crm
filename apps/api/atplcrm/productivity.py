@@ -1,11 +1,17 @@
 """Paginated lists, personal views, bulk assignment and stakeholder editing."""
 from __future__ import annotations
 
+import csv
+import io
+import json
+from copy import copy
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -95,6 +101,32 @@ def paginated(db: Session, statement, page: int, page_size: int):
     return total, items
 
 
+def exported_list(entity_type: str, payload: list[dict], export_format: str):
+    headers = list(payload[0]) if payload else ["No matching records"]
+    rows = []
+    for item in payload:
+        row = {}
+        for key, value in item.items():
+            if isinstance(value, (list, dict)):
+                value = json.dumps(value, default=str, ensure_ascii=False)
+            elif value is not None and not isinstance(value, (str, int, float, bool)):
+                value = value.isoformat() if isinstance(value, (date, datetime)) else str(value)
+            row[key] = value
+        rows.append(row)
+    if export_format == "csv":
+        stream = io.StringIO(); writer = csv.DictWriter(stream, fieldnames=headers); writer.writeheader()
+        for row in rows:
+            writer.writerow({key: f"'{value}" if isinstance(value, str) and value.startswith(("=", "+", "-", "@")) else value for key, value in row.items()})
+        payload_bytes = stream.getvalue().encode("utf-8-sig"); media = "text/csv; charset=utf-8"
+    else:
+        book = Workbook(); sheet = book.active; sheet.title = entity_type[:31]; sheet.append(headers)
+        for row in rows: sheet.append([row.get(header) for header in headers])
+        for cell in sheet[1]:
+            font = copy(cell.font); font.bold = True; cell.font = font
+        output = io.BytesIO(); book.save(output); payload_bytes = output.getvalue(); media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return StreamingResponse(io.BytesIO(payload_bytes), media_type=media, headers={"Content-Disposition": f'attachment; filename="ATPLCRM-{entity_type}-{date.today()}.{export_format}"'})
+
+
 @router.get("/lists/{entity_type}/")
 def record_list(
     entity_type: str,
@@ -114,10 +146,13 @@ def record_list(
     direction: str = "desc",
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=10, le=100),
+    export_format: str = "",
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
     if entity_type not in ENTITY_TYPES: raise http_error(404, "Record list not found.")
+    if export_format not in {"", "csv", "xlsx"}: raise http_error(422, {"export_format": "Choose csv or xlsx."})
+    if export_format: page, page_size = 1, 50000
     if action_from and action_to and action_from > action_to: raise http_error(422, {"action_to": "End date must be on or after the start date."})
     if interaction_from and interaction_to and interaction_from > interaction_to: raise http_error(422, {"interaction_to": "End date must be on or after the start date."})
     if close_from and close_to and close_from > close_to: raise http_error(422, {"close_to": "End date must be on or after the start date."})
@@ -190,6 +225,7 @@ def record_list(
         columns = {"name": Pursuit.name, "action_date": Pursuit.action_date, "close_date": Opportunity.expected_close_date, "value": Opportunity.value_usd, "created": Pursuit.created_at, "updated": Pursuit.updated_at}
         order = columns.get(sort, Pursuit.updated_at); statement = statement.order_by(order.desc() if descending else order.asc(), Opportunity.id)
         total, items = paginated(db, statement, page, page_size); payload = [out.opportunity(db, item, user) for item in items]
+    if export_format: return exported_list(entity_type, payload, export_format)
     pages = max(1, (total + page_size - 1) // page_size)
     return {"entity_type": entity_type, "items": payload, "total": total, "page": page, "page_size": page_size, "pages": pages}
 

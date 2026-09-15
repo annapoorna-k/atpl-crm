@@ -22,7 +22,7 @@ This plan has two explicit views:
 | Area | Correct position |
 |---|---|
 | Product boundary | Independent ATPLCRM repository at `/Users/n22/Desktop/ATPLCRM`; no Orbit dependency |
-| Current release | v0.7 working core with synthetic local data; not yet production-ready or PRD-complete |
+| Current release | v0.14 working core with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality, pre-sales and documents/email phases complete locally |
 | Web application | React 19, TypeScript, Vite, custom responsive CSS, Lucide icons |
 | API | FastAPI 0.135, Pydantic, modular-monolith domain services |
 | Persistence | PostgreSQL 17, SQLAlchemy 2, Alembic migrations, decimal financial values |
@@ -292,7 +292,7 @@ Settings are typed and validated at startup. Environment files contain local val
 
 **Dependencies:** commercial rules and reliable historical events.
 
-**Deliverables:** monthly/quarterly pipeline and forecast, historical funnel, loss/blocker/value-erosion/partner/movement analysis, individual contribution, role dashboards, as-of/slippage reporting, ranked PostgreSQL full-text search, complete server-side CSV/Excel exports and sanitized regional configuration comparison.
+**Delivered locally in v0.14:** monthly/quarterly pipeline and forecast, historical funnel, loss/blocker/value-erosion/partner/movement analysis, individual contribution, role dashboards, record drill-down and complete server-side CSV/Excel report exports. **Remaining in this phase:** ranked PostgreSQL full-text search, connected-scale reconciliation and sanitized regional configuration comparison.
 
 **Exit:** drill-down totals reconcile with independently calculated fixtures; permissions apply to aggregates and exports; the weekly leadership review requires no side spreadsheet.
 
@@ -317,13 +317,13 @@ Settings are typed and validated at startup. Environment files contain local val
 | Domain | Remaining functionality |
 |---|---|
 | Identity/security | Real Entra OIDC; provisioned identity lifecycle; fine-grained policy matrix; stronger login throttling; runtime/migration DB privileges; full restricted-data coverage |
-| Companies/contacts | Remaining fields and full edits; paginated histories; engagement updates; consent/do-not-contact completion |
-| Import/data quality | Excel, background imports over current CSV limit, fuzzy matching, field-level merges and fuller collision context |
-| Pipeline | Specialized filters, configurable working calendars and deeper historical movement analysis |
-| Commercial | Complete partner agreement fields/evidence/calculations, FX update/rebaseline, probability snapshot rules, won/lost/handoff and approval evidence |
+| Companies/contacts | Local feature scope complete; connected-scale acceptance remains |
+| Import/data quality | Local feature scope complete; background connected-volume acceptance remains |
+| Pipeline | Local feature scope complete; connected-scale acceptance remains |
+| Commercial | Local feature scope complete; connected FX-source acceptance remains |
 | Documents | Local managed uploads, links, mail/attachment registration, approval/register, versions and reusable library complete; Azure Blob/Graph activation and Outlook tenant deployment remain |
-| Pre-sales | Full transitions, review gate/evidence, contributors, individual weekly capacity and cost analytics |
-| Reports | Time filters, historical funnel, losses, blockers, erosion, partner/movement/performance, server exports, Excel and configuration parity |
+| Pre-sales | Local feature scope complete; connected-scale acceptance remains |
+| Reports | Local analytics complete; connected-scale reconciliation and configuration parity acceptance remain |
 | Search/scale | PostgreSQL full-text indexes/ranking, recent search history, cache strategy and documented performance acceptance |
 | Notifications | Current in-app automation is complete; external email/mobile channels only if business scope later requires them |
 | AI | Azure OpenAI adapter, grounded experiences, review/consent UI, safety/evaluation and cost/quality monitoring |

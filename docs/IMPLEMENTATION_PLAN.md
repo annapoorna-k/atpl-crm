@@ -22,7 +22,7 @@ This plan has two explicit views:
 | Area | Correct position |
 |---|---|
 | Product boundary | Independent ATPLCRM repository at `/Users/n22/Desktop/ATPLCRM`; no Orbit dependency |
-| Current release | v0.13 working core with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality, pre-sales and documents/email phases complete locally |
+| Current release | v0.14 working core with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality, pre-sales and documents/email phases complete locally |
 | Web application | React 19, TypeScript, Vite, custom responsive CSS, Lucide icons |
 | API | FastAPI 0.135, Pydantic, modular-monolith domain services |
 | Persistence | PostgreSQL 17, SQLAlchemy 2, Alembic migrations, decimal financial values |
@@ -292,7 +292,7 @@ Settings are typed and validated at startup. Environment files contain local val
 
 **Dependencies:** commercial rules and reliable historical events.
 
-**Deliverables:** monthly/quarterly pipeline and forecast, historical funnel, loss/blocker/value-erosion/partner/movement analysis, individual contribution, role dashboards, as-of/slippage reporting, ranked PostgreSQL full-text search, complete server-side CSV/Excel exports and sanitized regional configuration comparison.
+**Delivered locally in v0.14:** monthly/quarterly pipeline and forecast, historical funnel, loss/blocker/value-erosion/partner/movement analysis, individual contribution, role dashboards, record drill-down and complete server-side CSV/Excel report exports. **Remaining in this phase:** ranked PostgreSQL full-text search, connected-scale reconciliation and sanitized regional configuration comparison.
 
 **Exit:** drill-down totals reconcile with independently calculated fixtures; permissions apply to aggregates and exports; the weekly leadership review requires no side spreadsheet.
 
@@ -323,7 +323,7 @@ Settings are typed and validated at startup. Environment files contain local val
 | Commercial | Local feature scope complete; connected FX-source acceptance remains |
 | Documents | Local managed uploads, links, mail/attachment registration, approval/register, versions and reusable library complete; Azure Blob/Graph activation and Outlook tenant deployment remain |
 | Pre-sales | Local feature scope complete; connected-scale acceptance remains |
-| Reports | Time filters, historical funnel, losses, blockers, erosion, partner/movement/performance, server exports, Excel and configuration parity |
+| Reports | Local analytics complete; connected-scale reconciliation and configuration parity acceptance remain |
 | Search/scale | PostgreSQL full-text indexes/ranking, recent search history, cache strategy and documented performance acceptance |
 | Notifications | Current in-app automation is complete; external email/mobile channels only if business scope later requires them |
 | AI | Azure OpenAI adapter, grounded experiences, review/consent UI, safety/evaluation and cost/quality monitoring |

@@ -3,6 +3,8 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
+  Download,
+  FileSpreadsheet,
   ListFilter,
   LoaderCircle,
   Search,
@@ -151,6 +153,13 @@ export function RecordList({
     setSelected([]);
     void load(1, next);
   }
+  function exportList(format: "csv" | "xlsx") {
+    const params = new URLSearchParams({ export_format: format });
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    location.href = `/api/v1/productivity/lists/${entity}/?${params}`;
+  }
   async function saveView() {
     if (!viewName.trim()) return;
     try {
@@ -251,6 +260,10 @@ export function RecordList({
             + Save current filters
           </button>
         )}
+        <span className="list-export-actions">
+          <button className="text-button" onClick={() => exportList("csv")}><Download size={13} /> CSV</button>
+          <button className="text-button" onClick={() => exportList("xlsx")}><FileSpreadsheet size={13} /> Excel</button>
+        </span>
       </div>
       <div className="record-filter-grid">
         <label>

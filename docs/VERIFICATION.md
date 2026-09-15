@@ -1,17 +1,15 @@
-# ATPLCRM v0.13 verification
+# ATPLCRM v0.14 verification
 
-Verified locally on 15 September 2026.
+Verified locally on 16 September 2026.
 
 | Check | Result |
 |---|---|
-| Documents and email workflow | 1 focused API workflow passed: link, role-gated approval, named sharing, version conflict, managed upload/download, selected email, automatic attachment registration, shared register and reusable library |
-| Recipient-aware pre-sales delivery | Existing focused pre-sales workflow passed with required same-company recipients written to the shared register |
-| TypeScript and Vite production build | Passed, 1,583 modules transformed |
-| International deployment | Healthy on `http://localhost:8082`; API `0.13.0`; migration `0012_documents_register` |
-| US deployment | Healthy on `http://localhost:8083`; API `0.13.0`; migration `0012_documents_register` |
-| Outlook package | Manifest/task pane and brand icons are served at `/outlook/`; tenant deployment awaits the approved Azure HTTPS host and Entra configuration |
-| Python source | API, models, schemas and migration compile successfully |
+| Reporting workflow | 1 focused API workflow passed: all analytics datasets, seven milestones, lifecycle funnel, movement categories, reconcilable Decimal pipeline total, permission-safe drill-down IDs, Hold exclusion from forecast, role dashboard, report CSV/Excel, full filtered-list CSV/Excel and Standard self-only performance |
+| TypeScript and Vite production build | Passed, 1,584 modules transformed |
+| International deployment | Healthy on `http://localhost:8082`; API `0.14.0`; migration `0012_documents_register` |
+| US deployment | Healthy on `http://localhost:8083`; API `0.14.0`; migration `0012_documents_register` |
+| Python source | Reporting router and application entry point compile successfully |
 
-This is a focused Feature 7 check. The v0.12 verification covered pre-sales completion; earlier releases cover imports, relationships, commercial workflows, authorization and browser acceptance.
+This is a focused reporting completion check. Earlier release verification covers documents, pre-sales, imports, relationships, commercial workflows, authorization and browser acceptance.
 
-The local release now completes FR-85 and FR-87 through FR-92. FR-86's Outlook task pane is implemented and requires the approved Azure HTTPS/Entra environment for tenant deployment and connected acceptance. Production identity and release hardening remain tracked separately in the implementation status.
+The local release completes FR-97 through FR-107, including server-calculated net analytics, shared filters, governed drill-down, role views and CSV/Excel report exports. Azure identity/adapters, scale reconciliation and production hardening remain tracked separately in the implementation status.

@@ -11,9 +11,10 @@ from .pipeline import router as pipeline_router
 from .notifications import router as notifications_router
 from .commercial import router as commercial_router
 from .documents import router as documents_router
+from .reporting import router as reporting_router
 from .database import engine
 
-app = FastAPI(title="ATPLCRM API", version="0.13.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+app = FastAPI(title="ATPLCRM API", version="0.14.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
 app.include_router(router)
 app.include_router(admin_router)
 app.include_router(data_router)
@@ -22,6 +23,7 @@ app.include_router(pipeline_router)
 app.include_router(notifications_router)
 app.include_router(commercial_router)
 app.include_router(documents_router)
+app.include_router(reporting_router)
 
 
 @app.exception_handler(RequestValidationError)

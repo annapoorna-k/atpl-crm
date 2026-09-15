@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import {
   Activity as ActivityIcon,
-  ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
   Bell,
@@ -44,6 +43,7 @@ import { api } from "./api";
 import { DataTools } from "./DataTools";
 import { DocumentCenter } from "./DocumentCenter";
 import { RecordList } from "./RecordList";
+import { ReportsCenter } from "./ReportsCenter";
 import type {
   Company,
   Contact,
@@ -53,7 +53,6 @@ import type {
   Request,
   Timeline,
   AdminReference,
-  MilestoneReport,
   NotificationPreference,
   WorkQueues,
   AutomationStatus,
@@ -61,7 +60,6 @@ import type {
   PartnerPerformanceReport,
   UndocumentedPartnerReport,
   ActivityPage,
-  MovementReport,
   PreSalesCostReport,
   PreSalesQueue,
   ValidationRoute,
@@ -150,6 +148,10 @@ type FormSpec = {
   submit: (values: Record<string, string>) => Promise<unknown>;
   label?: string;
   notice?: (values: Record<string, string>) => string;
+};
+type RoleDashboard = {
+  role: string;
+  cards: { label: string; value: string; route: string; record_ids: string[] }[];
 };
 function Avatar({ name, small = false }: { name: string; small?: boolean }) {
   return (
@@ -492,9 +494,6 @@ export default function App() {
     [pipelineView, setPipelineView] = useState("board"),
     [showLocalCurrency, setShowLocalCurrency] = useState(false),
     [draggedPursuit, setDraggedPursuit] = useState<Pursuit | null>(null),
-    [milestoneReport, setMilestoneReport] = useState<MilestoneReport[]>([]),
-    [movementReport, setMovementReport] = useState<MovementReport | null>(null),
-    [movementPeriod, setMovementPeriod] = useState("90d"),
     [validationRoute, setValidationRoute] = useState<ValidationRoute | null>(
       null,
     ),
@@ -515,6 +514,7 @@ export default function App() {
     [presalesOwner, setPresalesOwner] = useState(""),
     [presalesStatus, setPresalesStatus] = useState("open"),
     [presalesCost, setPresalesCost] = useState<PreSalesCostReport | null>(null),
+    [roleDashboard, setRoleDashboard] = useState<RoleDashboard | null>(null),
     [relationshipHistory, setRelationshipHistory] =
       useState<ActivityPage | null>(null);
   const detailRef = useRef<HTMLDialogElement>(null);
@@ -535,6 +535,12 @@ export default function App() {
   useEffect(() => {
     if (session) void load();
   }, [session]);
+  useEffect(() => {
+    if (!session || !data || page !== "overview") return;
+    api<RoleDashboard>("reports/home/")
+      .then(setRoleDashboard)
+      .catch((e) => setToast((e as Error).message));
+  }, [session, data, page]);
   useEffect(() => {
     if (
       !session ||
@@ -601,22 +607,6 @@ export default function App() {
       .then(setValidationRoute)
       .catch((e) => setToast((e as Error).message));
   }, [selected, data]);
-  useEffect(() => {
-    if (session && page === "reports")
-      api<MilestoneReport[]>("pipeline/milestones/")
-        .then(setMilestoneReport)
-        .catch((e) => setToast(e.message));
-  }, [page, session, data]);
-  useEffect(() => {
-    if (
-      session &&
-      page === "reports" &&
-      ["Administrator", "Manager", "Executive"].includes(session.level)
-    )
-      api<MovementReport>(`pipeline/movement/?period=${movementPeriod}`)
-        .then(setMovementReport)
-        .catch((e) => setToast((e as Error).message));
-  }, [page, session, data, movementPeriod]);
   useEffect(() => {
     if (session && ["work", "attention"].includes(page)) {
       setWorkQueues(null);
@@ -2547,6 +2537,29 @@ export default function App() {
           )}
           {page === "overview" && (
             <>
+              {roleDashboard && (
+                <section className="role-dashboard">
+                  <div>
+                    <span>ROLE VIEW</span>
+                    <strong>{roleDashboard.role}</strong>
+                  </div>
+                  {roleDashboard.cards.map((card) => (
+                    <button
+                      key={card.label}
+                      onClick={() => {
+                        const pursuit = card.record_ids.length === 1
+                          ? [...d.opportunities, ...d.leads].find((row) => row.id === card.record_ids[0])
+                          : undefined;
+                        if (pursuit) openPursuit(pursuit); else go(card.route);
+                      }}
+                    >
+                      <small>{card.label}</small>
+                      <strong>{card.value}</strong>
+                      <ChevronRight size={16} />
+                    </button>
+                  ))}
+                </section>
+              )}
               <div className="metrics">
                 {metric(
                   "Open pipeline",
@@ -3360,210 +3373,7 @@ export default function App() {
           )}
           {page === "reports" && (
             <>
-              <div className="metrics">
-                {metric(
-                  "Net pipeline",
-                  money(total, "USD", true),
-                  "Visible open opportunities",
-                  <Handshake size={18} />,
-                  () => go("pipeline"),
-                )}
-                {metric(
-                  "Weighted forecast",
-                  money(weighted, "USD", true),
-                  "Probability × net value",
-                  <TrendingUp size={18} />,
-                  () => go("pipeline"),
-                )}
-                {metric(
-                  "Converted leads",
-                  String(
-                    d.leads.filter((l) => l.outcome === "Converted").length,
-                  ),
-                  "Full history preserved",
-                  <ArrowUpRight size={18} />,
-                  () => go("leads"),
-                )}
-                {metric(
-                  "Closed won",
-                  String(
-                    d.opportunities.filter((o) => o.stage === "won").length,
-                  ),
-                  "Signed business",
-                  <CheckCircle2 size={18} />,
-                  () => go("pipeline"),
-                )}
-              </div>
-              <div className="overview-bottom">
-                <section className="panel">
-                  <div className="panel-heading">
-                    <h2>Pipeline by stage</h2>
-                    <Badge>Net USD</Badge>
-                  </div>
-                  {pipelineChart}
-                </section>
-                <section className="panel">
-                  <div className="panel-heading">
-                    <h2>Lead funnel</h2>
-                    <Badge>{d.leads.length} total</Badge>
-                  </div>
-                  <div className="funnel">
-                    {d.reference.lead_statuses.map(([key, label]) => (
-                      <button key={key} onClick={() => go("leads")}>
-                        <span>{label}</span>
-                        <div>
-                          <i
-                            style={{
-                              width: `${Math.max(4, (d.leads.filter((l) => l.status === key).length / Math.max(1, d.leads.length)) * 100)}%`,
-                            }}
-                          />
-                        </div>
-                        <strong>
-                          {d.leads.filter((l) => l.status === key).length}
-                        </strong>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              </div>
-              <section className="panel milestone-report-panel">
-                <div className="panel-heading">
-                  <div>
-                    <h2>Seven-milestone lifecycle</h2>
-                    <p>
-                      Completed pursuits and median elapsed working days between
-                      each milestone.
-                    </p>
-                  </div>
-                  <Badge>{milestoneReport.length} milestones</Badge>
-                </div>
-                <div className="milestone-report-grid">
-                  {milestoneReport.map((milestone) => (
-                    <button
-                      key={milestone.key}
-                      onClick={() =>
-                        go(
-                          [
-                            "lead_created",
-                            "first_contacted",
-                            "ready_for_validation",
-                          ].includes(milestone.key)
-                            ? "leads"
-                            : "pipeline",
-                        )
-                      }
-                    >
-                      <span
-                        className={`milestone-status ${milestone.healthy ? "healthy" : "slow"}`}
-                      />
-                      <small>{milestone.label}</small>
-                      <strong>{milestone.count}</strong>
-                      <span>
-                        {milestone.median_working_days == null
-                          ? "No elapsed data"
-                          : `${milestone.median_working_days} median workdays`}
-                      </span>
-                      {milestone.target_working_days > 0 && (
-                        <em>
-                          Healthy &lt; {milestone.target_working_days} days
-                        </em>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </section>
-              {["Administrator", "Manager", "Executive"].includes(
-                d.user.level,
-              ) &&
-                movementReport && (
-                  <section className="panel movement-report-panel">
-                    <div className="panel-heading">
-                      <div>
-                        <h2>Historical pipeline movement</h2>
-                        <p>
-                          Stage transitions and current stage age in configured
-                          working days.
-                        </p>
-                      </div>
-                      <select
-                        aria-label="Movement analysis period"
-                        value={movementPeriod}
-                        onChange={(event) =>
-                          setMovementPeriod(event.target.value)
-                        }
-                      >
-                        <option value="30d">Last 30 days</option>
-                        <option value="90d">Last 90 days</option>
-                        <option value="365d">Last year</option>
-                        <option value="all">All history</option>
-                      </select>
-                    </div>
-                    <div className="movement-summary">
-                      <span>
-                        <small>STAGE MOVES</small>
-                        <strong>{movementReport.move_count}</strong>
-                      </span>
-                      <span>
-                        <small>REGRESSIONS</small>
-                        <strong>{movementReport.regression_count}</strong>
-                      </span>
-                      <span>
-                        <small>CALENDAR</small>
-                        <strong>
-                          {movementReport.calendar.working_weekdays.length}{" "}
-                          workdays
-                        </strong>
-                        <em>
-                          {movementReport.calendar.holiday_count} holidays
-                        </em>
-                      </span>
-                    </div>
-                    <div className="movement-columns">
-                      <div>
-                        <h3>Common transitions</h3>
-                        {movementReport.transitions.length ? (
-                          movementReport.transitions.map((row) => (
-                            <div
-                              className="report-row"
-                              key={`${row.from_label}-${row.to_label}`}
-                            >
-                              <span>
-                                <strong>
-                                  {row.from_label} → {row.to_label}
-                                </strong>
-                                <small>
-                                  {row.count} move{row.count === 1 ? "" : "s"}
-                                </small>
-                              </span>
-                              <Badge>
-                                {row.median_working_days} median days
-                              </Badge>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="settings-note">
-                            No stage changes in this period.
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <h3>Open stage age</h3>
-                        {movementReport.current_stage_age.map((row) => (
-                          <div className="report-row" key={row.stage}>
-                            <span>
-                              <strong>{row.label}</strong>
-                              <small>
-                                {row.count} active · oldest{" "}
-                                {row.oldest_working_days} days
-                              </small>
-                            </span>
-                            <Badge>{row.median_working_days} median days</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </section>
-                )}
+              <ReportsCenter data={d} onOpen={openPursuit} />
               {["Administrator", "Manager", "Executive"].includes(
                 d.user.level,
               ) &&
@@ -3612,75 +3422,6 @@ export default function App() {
                     </div>
                   </section>
                 )}
-              <section className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <h2>Forecast detail</h2>
-                    <p>
-                      Restricted values are excluded from your totals. On-hold
-                      pursuits are excluded from forecasts.
-                    </p>
-                  </div>
-                  <button
-                    className="button secondary"
-                    onClick={() => exportCsv(visibleOpps)}
-                  >
-                    Export CSV <ArrowDownLeft size={15} />
-                  </button>
-                </div>
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>OPPORTUNITY</th>
-                        <th>
-                          {showLocalCurrency ? "NET DEAL VALUE" : "NET USD"}
-                        </th>
-                        <th>PROBABILITY</th>
-                        <th>
-                          {showLocalCurrency
-                            ? "WEIGHTED DEAL VALUE"
-                            : "WEIGHTED USD"}
-                        </th>
-                        <th>EXPECTED CLOSE</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered(visibleOpps).map((r) => (
-                        <tr key={r.id}>
-                          <td>
-                            <button
-                              className="record-name"
-                              onClick={() => openPursuit(r)}
-                            >
-                              {r.name}
-                            </button>
-                          </td>
-                          <td>
-                            {showLocalCurrency
-                              ? money(r.net_value_local, r.currency)
-                              : money(r.net_value_usd)}
-                          </td>
-                          <td>{r.probability}%</td>
-                          <td>
-                            {money(
-                              (Number(
-                                showLocalCurrency
-                                  ? r.net_value_local
-                                  : r.net_value_usd,
-                              ) *
-                                (r.probability ?? 0)) /
-                                100,
-                              showLocalCurrency ? r.currency : "USD",
-                            )}
-                          </td>
-                          <td>{date(r.expected_close_date)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
               {["Administrator", "Manager", "Executive"].includes(
                 d.user.level,
               ) && (
@@ -5134,39 +4875,4 @@ export default function App() {
 }
 function dictLabel(list: [string, string][], key?: string) {
   return list.find((x) => x[0] === key)?.[1] ?? key;
-}
-function exportCsv(rows: Pursuit[]) {
-  const safe = (value: unknown) => {
-    let s = String(value ?? "");
-    if (/^[=+@\-\t\r]/.test(s)) s = "'" + s;
-    return '"' + s.replaceAll('"', '""') + '"';
-  };
-  const lines = [
-    [
-      "Opportunity",
-      "Company",
-      "Stage",
-      "Net USD",
-      "Probability",
-      "Expected close",
-    ],
-    ...rows.map((r) => [
-      r.name,
-      r.company,
-      r.stage,
-      r.net_value_usd,
-      r.probability,
-      r.expected_close_date,
-    ]),
-  ];
-  const blob = new Blob(
-    [lines.map((row) => row.map(safe).join(",")).join("\r\n")],
-    { type: "text/csv;charset=utf-8;" },
-  );
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "ATPLCRM-visible-forecast.csv";
-  a.click();
-  URL.revokeObjectURL(url);
 }
