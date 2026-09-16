@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 from .calendar import tenant_calendar, working_days
 from .constants import MANAGEMENT, STAGES
 from .database import get_db
-from .models import AuditEvent, Lead, Opportunity, PreSalesRequest, Pursuit, User, ValueHistory
+from .models import AuditEvent, CommercialSetting, Lead, Opportunity, PreSalesRequest, Pursuit, User, ValueHistory
 from .presenters import MILESTONES
 from .security import current_user
 from .services import can_value, commercial_totals, http_error, money, scoped, utc
@@ -54,7 +54,10 @@ def options():
         selectinload(Opportunity.pursuit).selectinload(Pursuit.sourced_by),
         selectinload(Opportunity.pursuit).selectinload(Pursuit.holder),
         selectinload(Opportunity.pursuit).selectinload(Pursuit.blocker_owner),
+        selectinload(Opportunity.pursuit).selectinload(Pursuit.lead),
+        selectinload(Opportunity.pursuit).selectinload(Pursuit.opportunity),
         selectinload(Opportunity.values),
+        selectinload(Opportunity.partners),
     )
 
 
@@ -73,6 +76,7 @@ def record(opportunity: Opportunity, net: Decimal | None) -> dict:
 
 def opportunity_rows(db: Session, user: User, owner_id: int | None, service_line: str, source: str, country: str, opportunity_type: str):
     rows = list(db.scalars(scoped(db, Opportunity, user).options(*options())).unique().all())
+    settings = db.scalar(scoped(db, CommercialSetting, user))
     result = []
     for item in rows:
         pursuit = item.pursuit
@@ -82,7 +86,7 @@ def opportunity_rows(db: Session, user: User, owner_id: int | None, service_line
         if country and pursuit.company.country != country: continue
         if opportunity_type and item.opportunity_type != opportunity_type: continue
         if not can_value(db, user, item): continue
-        result.append((item, commercial_totals(db, item)["net_usd"]))
+        result.append((item, commercial_totals(db, item, partners=item.partners, settings=settings)["net_usd"]))
     return result
 
 
@@ -122,7 +126,7 @@ def analytics_data(
             bucket[key]["net"] += net; bucket[key]["weighted"] += weighted; bucket[key]["ids"].append(str(item.pursuit_id))
     def forecast_rows(values): return [{"period": key, "net_value_usd": str(money(row["net"])), "weighted_value_usd": str(money(row["weighted"])), "count": len(row["ids"]), "record_ids": row["ids"]} for key, row in sorted(values.items())]
 
-    lead_statement = scoped(db, Lead, user).options(selectinload(Lead.pursuit).selectinload(Pursuit.owner), selectinload(Lead.pursuit).selectinload(Pursuit.sourced_by), selectinload(Lead.pursuit).selectinload(Pursuit.company))
+    lead_statement = scoped(db, Lead, user).options(selectinload(Lead.pursuit).selectinload(Pursuit.owner), selectinload(Lead.pursuit).selectinload(Pursuit.sourced_by), selectinload(Lead.pursuit).selectinload(Pursuit.company), selectinload(Lead.pursuit).selectinload(Pursuit.lead), selectinload(Lead.pursuit).selectinload(Pursuit.opportunity))
     leads = list(db.scalars(lead_statement).unique().all())
     lead_stages = ["Created", "Worked", "Engaged", "Validated", "Disqualified", "Converted"]
     funnel = {stage: [] for stage in lead_stages}; by_source = defaultdict(lambda: {stage: [] for stage in lead_stages}); by_user = defaultdict(lambda: {stage: [] for stage in lead_stages})

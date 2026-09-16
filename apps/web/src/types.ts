@@ -303,9 +303,21 @@ export interface PreSalesCostReport {
 }
 export interface Data {
   user: Person;
+  permissions: {
+    role: string;
+    capabilities: { code: string; label: string; granted: boolean }[];
+    field_rules: { area: string; fields: string; rule: string }[];
+  };
   instance: string;
   mode: string;
   today: string;
+  workspace_counts: { companies: number; contacts: number; pursuits: number };
+  working_set: {
+    companies: number;
+    contacts: number;
+    pursuits: number;
+    truncated: boolean;
+  };
   users: Person[];
   admin_users: Person[];
   admin_references: AdminReference[];

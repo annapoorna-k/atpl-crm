@@ -4,7 +4,9 @@ from __future__ import annotations
 import csv
 import base64
 import binascii
+import hashlib
 import io
+import json
 import re
 from zipfile import BadZipFile
 from collections import defaultdict
@@ -15,14 +17,15 @@ from uuid import UUID
 
 from email_validator import EmailNotValidError, validate_email
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, Field
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import case, func, literal, literal_column, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from .constants import COMPANY_TYPES, CONSENT_BASES, CONTACT_SENIORITIES, ENGAGEMENT_STATUSES, MANAGEMENT
 from .database import get_db
-from .models import Activity, Company, Contact, DuplicateDecision, ImportJob, Lead, Opportunity, PartnerInvolvement, Pursuit, PursuitContact, User
+from .models import Activity, Company, Contact, DuplicateDecision, ImportJob, Lead, Opportunity, PartnerInvolvement, Pursuit, PursuitContact, SearchHistory, User
 from .references import codes as reference_codes
 from .schemas import DuplicateDismissInput, ImportInput, MergeInput
 from .security import current_user
@@ -349,38 +352,121 @@ def present_job(job: ImportJob) -> dict:
 
 @router.get("/imports/")
 def import_history(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    import_access(user)
     jobs = db.scalars(scoped(db, ImportJob, user).order_by(ImportJob.created_at.desc()).limit(50)).all()
     return [present_job(job) for job in jobs]
 
 
+SEARCH_ENTITIES = {"all", "companies", "contacts", "leads", "opportunities"}
+
+
+def search_terms(db: Session, q: str, table: str, columns: list):
+    needle = f"%{q.strip()}%"; prefix = f"{q.strip()}%"
+    exact = func.lower(columns[0]) == q.strip().casefold(); starts = columns[0].ilike(prefix)
+    if db.bind and db.bind.dialect.name == "postgresql":
+        tokens = re.findall(r"[a-z0-9]+", q.casefold())
+        query = func.to_tsquery("simple", " & ".join(f"{token}:*" for token in tokens))
+        vector = literal_column(f"{table}.search_vector")
+        condition = or_(vector.op("@@")(query), *(column.ilike(needle) for column in columns))
+        rank = func.ts_rank_cd(vector, query) + case((exact, 2.0), (starts, 1.0), else_=0.0)
+    else:
+        condition = or_(*(column.ilike(needle) for column in columns))
+        rank = case((exact, 3.0), (starts, 2.0), else_=literal(1.0))
+    return condition, rank
+
+
+def search_page(db: Session, statement, rank, page_end: int):
+    total = db.scalar(select(func.count()).select_from(statement.order_by(None).subquery())) or 0
+    rows = db.execute(statement.add_columns(rank.label("search_rank")).order_by(rank.desc()).limit(page_end)).unique().all()
+    return total, rows
+
+
 @router.get("/search/")
 def global_search(q: str = Query(min_length=2, max_length=120), entity_type: str = "all", owner_id: int | None = None, status_filter: str = "", country: str = "", page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100), db: Session = Depends(get_db), user: User = Depends(current_user)):
-    needle = f"%{q.strip()}%"; results: list[dict] = []
+    if entity_type not in SEARCH_ENTITIES: raise http_error(422, {"entity_type": "Choose a supported record type."})
+    q = " ".join(q.split()); page_end = page * page_size; results: list[dict] = []; total = 0
     if entity_type in {"all", "companies"}:
-        statement = scoped(db, Company, user).where(or_(Company.name.ilike(needle), Company.domain.ilike(needle), Company.industry.ilike(needle))).options(selectinload(Company.owner))
+        condition, rank = search_terms(db, q, "crm_company", [Company.name, Company.domain, Company.industry, Company.country])
+        statement = scoped(db, Company, user).where(condition).options(selectinload(Company.owner))
         if owner_id: statement = statement.where(Company.owner_id == owner_id)
         if country: statement = statement.where(func.lower(Company.country) == country.casefold())
-        for item in db.scalars(statement.limit(200)).all(): results.append({"type": "Company", "id": str(item.id), "title": item.name, "subtitle": item.domain or item.industry or item.country, "status": item.company_type, "owner": item.owner.display_name, "route": "companies"})
+        count, rows = search_page(db, statement, rank, page_end); total += count
+        for item, score in rows: results.append({"type": "Company", "id": str(item.id), "title": item.name, "subtitle": item.domain or item.industry or item.country, "status": item.company_type, "owner": item.owner.display_name, "route": "companies", "rank": round(float(score or 0), 4)})
     if entity_type in {"all", "contacts"}:
-        statement = scoped(db, Contact, user).where(or_(Contact.first_name.ilike(needle), Contact.last_name.ilike(needle), Contact.email.ilike(needle), Contact.phone.ilike(needle), Contact.mobile.ilike(needle))).options(selectinload(Contact.company), selectinload(Contact.owner))
+        condition, rank = search_terms(db, q, "crm_contact", [Contact.first_name, Contact.last_name, Contact.email, Contact.phone, Contact.mobile])
+        statement = scoped(db, Contact, user).join(Contact.company).where(or_(condition, Company.name.ilike(f"%{q}%"))).options(selectinload(Contact.company), selectinload(Contact.owner))
         if owner_id: statement = statement.where(Contact.owner_id == owner_id)
         if country: statement = statement.where(func.lower(Contact.country) == country.casefold())
-        for item in db.scalars(statement.limit(200)).all(): results.append({"type": "Contact", "id": str(item.id), "title": item.name, "subtitle": f"{item.company.name} · {item.email or item.phone or item.country}", "status": item.engagement_status, "owner": item.owner.display_name, "route": "contacts"})
+        count, rows = search_page(db, statement, rank, page_end); total += count
+        for item, score in rows: results.append({"type": "Contact", "id": str(item.id), "title": item.name, "subtitle": f"{item.company.name} · {item.email or item.phone or item.country}", "status": item.engagement_status, "owner": item.owner.display_name, "route": "contacts", "rank": round(float(score or 0), 4)})
     if entity_type in {"all", "leads", "opportunities"}:
-        statement = scoped(db, Pursuit, user).where(or_(Pursuit.name.ilike(needle), Pursuit.source_detail.ilike(needle))).options(selectinload(Pursuit.company), selectinload(Pursuit.owner), selectinload(Pursuit.lead), selectinload(Pursuit.opportunity))
+        condition, rank = search_terms(db, q, "crm_pursuit", [Pursuit.name, Pursuit.source_detail, Pursuit.source_channel])
+        statement = scoped(db, Pursuit, user).join(Pursuit.company).where(or_(condition, Company.name.ilike(f"%{q}%"))).options(selectinload(Pursuit.company), selectinload(Pursuit.owner), selectinload(Pursuit.lead), selectinload(Pursuit.opportunity))
+        if entity_type == "leads": statement = statement.join(Pursuit.lead)
+        if entity_type == "opportunities": statement = statement.join(Pursuit.opportunity)
         if owner_id: statement = statement.where(Pursuit.owner_id == owner_id)
-        for item in db.scalars(statement.limit(300)).all():
-            kind = "Opportunity" if item.opportunity else "Lead"
-            expected_type = "opportunities" if kind == "Opportunity" else "leads"
-            if entity_type != "all" and entity_type != expected_type: continue
+        if country: statement = statement.where(func.lower(Company.country) == country.casefold())
+        if status_filter:
+            if entity_type == "leads": statement = statement.where(Lead.status == status_filter)
+            elif entity_type == "opportunities": statement = statement.where(Opportunity.stage == status_filter)
+            else: statement = statement.outerjoin(Pursuit.lead).outerjoin(Pursuit.opportunity).where(or_(Lead.status == status_filter, Opportunity.stage == status_filter))
+        count, rows = search_page(db, statement, rank, page_end)
+        filtered = []
+        for item, score in rows:
+            kind = "Opportunity" if item.opportunity else "Lead"; expected = "opportunities" if item.opportunity else "leads"
+            if entity_type != "all" and entity_type != expected: continue
             state = item.opportunity.stage if item.opportunity else item.lead.status
-            if status_filter and state != status_filter: continue
-            if country and item.company.country.casefold() != country.casefold(): continue
-            results.append({"type": kind, "id": str(item.id), "title": item.name, "subtitle": item.company.name, "status": state, "owner": item.owner.display_name, "route": "pipeline" if item.opportunity else "leads"})
+            filtered.append((item, score, kind, state))
+        total += count
+        for item, score, kind, state in filtered: results.append({"type": kind, "id": str(item.id), "title": item.name, "subtitle": item.company.name, "status": state, "owner": item.owner.display_name, "route": "pipeline" if item.opportunity else "leads", "rank": round(float(score or 0), 4)})
     order = {"Opportunity": 0, "Lead": 1, "Company": 2, "Contact": 3}
-    results.sort(key=lambda item: (order[item["type"]], item["title"].casefold()))
-    total = len(results); start = (page - 1) * page_size
-    return {"query": q, "total": total, "page": page, "page_size": page_size, "results": results[start:start + page_size]}
+    results.sort(key=lambda item: (-item["rank"], order[item["type"]], item["title"].casefold()))
+    start = (page - 1) * page_size
+    return {"query": q, "total": total, "page": page, "page_size": page_size, "pages": max(1, (total + page_size - 1) // page_size), "results": results[start:start + page_size]}
+
+
+class RecentSearchInput(BaseModel):
+    query: str = Field(min_length=2, max_length=120)
+    entity_type: str = "all"
+    owner_id: int | None = None
+    status_filter: str = Field("", max_length=40)
+    country: str = Field("", max_length=80)
+
+
+def present_search(item: SearchHistory) -> dict:
+    return {"id": str(item.id), "query": item.query, "entity_type": item.entity_type, "filters": item.filters, "use_count": item.use_count, "last_used_at": item.last_used_at}
+
+
+@router.get("/search/recent/")
+def recent_searches(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.scalars(scoped(db, SearchHistory, user).where(SearchHistory.user_id == user.id).order_by(SearchHistory.last_used_at.desc()).limit(8)).all()
+    return [present_search(item) for item in rows]
+
+
+@router.post("/search/recent/", status_code=201)
+def remember_search(payload: RecentSearchInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if payload.entity_type not in SEARCH_ENTITIES: raise http_error(422, {"entity_type": "Choose a supported record type."})
+    filters = {"owner_id": payload.owner_id, "status_filter": payload.status_filter, "country": payload.country}
+    normalized_query = " ".join(payload.query.split())
+    signature = hashlib.sha256(json.dumps([normalized_query.casefold(), payload.entity_type, filters], sort_keys=True).encode()).hexdigest()
+    item = db.scalar(scoped(db, SearchHistory, user).where(SearchHistory.user_id == user.id, SearchHistory.signature == signature))
+    now = datetime.now(timezone.utc)
+    if item:
+        item.use_count += 1; item.last_used_at = now; item.updated_at = now; item.updated_by_id = user.id
+    else:
+        item = SearchHistory(**stamp(user), user_id=user.id, query=normalized_query, entity_type=payload.entity_type, filters=filters, signature=signature, last_used_at=now); db.add(item)
+    db.flush()
+    older = db.scalars(scoped(db, SearchHistory, user).where(SearchHistory.user_id == user.id, SearchHistory.id != item.id).order_by(SearchHistory.last_used_at.desc()).offset(7)).all()
+    for row in older: row.is_deleted = True; row.updated_by_id = user.id
+    db.commit(); db.refresh(item)
+    return present_search(item)
+
+
+@router.delete("/search/recent/")
+def clear_recent_searches(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.scalars(scoped(db, SearchHistory, user).where(SearchHistory.user_id == user.id)).all()
+    for row in rows: row.is_deleted = True; row.updated_by_id = user.id
+    db.commit(); return {"detail": "Recent searches cleared."}
 
 
 COMPANY_MERGE_FIELDS = ("name", "domain", "company_type", "industry", "country", "global_account_name", "primary_region", "owner_id")
@@ -469,6 +555,7 @@ def duplicate_groups(db: Session, user: User) -> list[dict]:
 
 @router.get("/duplicates/")
 def duplicates(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    import_access(user)
     groups = duplicate_groups(db, user)
     return {"group_count": len(groups), "record_count": sum(len(group["records"]) for group in groups), "groups": groups}
 
@@ -536,6 +623,7 @@ def dismiss_duplicate(entity_type: str, payload: DuplicateDismissInput, db: Sess
 
 @router.get("/quality/")
 def data_quality(severity: str = "all", entity_type: str = "all", page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=200), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    import_access(user)
     issues: list[dict] = []
     companies = db.scalars(scoped(db, Company, user)).all()
     contacts = db.scalars(scoped(db, Contact, user).options(selectinload(Contact.company))).all()

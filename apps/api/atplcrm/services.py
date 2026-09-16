@@ -61,11 +61,18 @@ def money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"))
 
 
-def commercial_totals(db: Session, opportunity: Opportunity) -> dict:
+def commercial_totals(
+    db: Session,
+    opportunity: Opportunity,
+    *,
+    partners: list[PartnerInvolvement] | None = None,
+    settings: CommercialSetting | None = None,
+) -> dict:
     deduction = Decimal("0")
     total_share = Decimal("0")
     unresolved: list[str] = []
-    partners = db.scalars(scoped(db, PartnerInvolvement, opportunity).where(PartnerInvolvement.opportunity_id == opportunity.id)).all()
+    if partners is None:
+        partners = list(db.scalars(scoped(db, PartnerInvolvement, opportunity).where(PartnerInvolvement.opportunity_id == opportunity.id)).all())
     for partner in partners:
         if partner.status == "Lapsed or superseded":
             continue
@@ -93,7 +100,8 @@ def commercial_totals(db: Session, opportunity: Opportunity) -> dict:
                 unresolved.append("Rate-card spread terms are incomplete.")
         else:
             unresolved.append("Partner terms are still to be agreed.")
-    settings = db.scalar(scoped(db, CommercialSetting, opportunity))
+    if settings is None:
+        settings = db.scalar(scoped(db, CommercialSetting, opportunity))
     ceiling = settings.partner_share_warning_pct if settings else Decimal("40")
     if total_share > ceiling:
         unresolved.append(f"Partner share {total_share}% exceeds the configured {ceiling}% warning ceiling.")

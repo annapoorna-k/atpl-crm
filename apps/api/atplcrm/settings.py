@@ -20,7 +20,13 @@ class Settings(BaseSettings):
     fx_rate_source: str = Field("Configured published source", alias="FX_RATE_SOURCE")
     artifact_storage_root: str = Field("/data/artifacts", alias="ARTIFACT_STORAGE_ROOT")
     artifact_max_upload_mb: int = Field(10, alias="ARTIFACT_MAX_UPLOAD_MB", ge=1, le=100)
+    bootstrap_pursuit_limit: int = Field(100, alias="BOOTSTRAP_PURSUIT_LIMIT", ge=25, le=1000)
+    bootstrap_contact_limit: int = Field(100, alias="BOOTSTRAP_CONTACT_LIMIT", ge=25, le=1000)
+    bootstrap_company_limit: int = Field(250, alias="BOOTSTRAP_COMPANY_LIMIT", ge=25, le=2000)
     session_hours: int = 12
+    login_max_failures: int = Field(5, alias="LOGIN_MAX_FAILURES", ge=3, le=20)
+    login_window_minutes: int = Field(10, alias="LOGIN_WINDOW_MINUTES", ge=1, le=60)
+    login_block_minutes: int = Field(15, alias="LOGIN_BLOCK_MINUTES", ge=1, le=1440)
 
     @field_validator("instance_type")
     @classmethod

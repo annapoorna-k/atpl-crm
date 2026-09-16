@@ -498,3 +498,24 @@ class AppSession(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     user: Mapped[User] = relationship()
+
+
+class LoginThrottle(Base):
+    __tablename__ = "app_loginthrottle"
+    key_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+
+
+class SearchHistory(RecordMixin, Base):
+    __tablename__ = "crm_searchhistory"
+    __table_args__ = (UniqueConstraint("tenant_id", "user_id", "signature", name="crm_searchhistory_user_signature_uniq"),)
+    user_id: Mapped[int] = mapped_column(ForeignKey("crm_user.id", ondelete="CASCADE"), index=True)
+    query: Mapped[str] = mapped_column(String(120))
+    entity_type: Mapped[str] = mapped_column(String(30), default="all")
+    filters: Mapped[dict] = mapped_column(JSON, default=dict)
+    signature: Mapped[str] = mapped_column(String(64))
+    use_count: Mapped[int] = mapped_column(Integer, default=1)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    user: Mapped[User] = relationship(foreign_keys=[user_id])

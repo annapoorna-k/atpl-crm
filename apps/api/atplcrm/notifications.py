@@ -184,7 +184,7 @@ def work_queues(db: Session = Depends(get_db), user: User = Depends(current_user
     pursuits = db.scalars(scoped(db, Pursuit, user).options(*user_options())).unique().all()
     active = [pursuit for pursuit in pursuits if active_pursuit(pursuit)]
     requests = db.scalars(scoped(db, PreSalesRequest, user).options(*request_options())).unique().all()
-    today = date.today(); now = datetime.now(timezone.utc)
+    today = date.today(); now = datetime.now(timezone.utc); calendar = tenant_calendar(db, user.tenant_id)
     mine = [pursuit for pursuit in active if pursuit.holder_id == user.id]
     my_work = {
         "overdue_actions": [out.pursuit(db, row, user) for row in mine if row.action_date < today],

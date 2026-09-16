@@ -1,4 +1,4 @@
-# ATPLCRM v0.14 delivery status
+# ATPLCRM v0.15 delivery status
 
 This release starts the implementation plan and delivers an executable core. It does not mark all phases complete.
 
@@ -34,8 +34,8 @@ This release starts the implementation plan and delivers an executable core. It 
 ## Deliberate limits and remaining work
 
 | Area | Remaining scope |
-| Identity | Real Entra OIDC, local OIDC provider replacement for temporary demo password login, provisioned-user lifecycle and stronger login rate limiting. |
-| Administration | Fine-grained permission policies and connected-identity provisioning. Local users, global access levels, activation, password resets, reference options, stage probabilities and rates are editable now. |
+| Identity | Local demo sessions now include repeated-failure throttling and an explicit role/capability contract. Real Entra OIDC, provisioned-user lifecycle and connected identity policy remain later work. |
+| Administration | A documented, enforced local role matrix and field rules are visible in the UI. A custom fine-grained policy editor and connected-identity provisioning remain later work. |
 | Schema | Complete database-level role/tenant constraints and separate runtime/migration privileges. Artifact/email/share, commercial partner, closure and rate-governance fields are complete. |
 | Data entry | Company/contact/lead CSV and Excel import plus duplicate/data-quality workflows and qualified opportunity editing are complete locally. Connected-volume performance acceptance remains pending. |
 | Pipeline | Lead and opportunity workflow is complete locally: specialized filters, alternate validation routing, editable qualified fields, configurable working calendars, stage movement analysis, drag-and-drop, action completion, concurrency protection and seven milestones. Connected-scale acceptance remains pending. |
@@ -44,17 +44,17 @@ This release starts the implementation plan and delivers an executable core. It 
 | Documents | Local workflows are complete with a private Docker volume and an Outlook task-pane package. Azure Blob/SharePoint/Graph adapters, add-in tenant deployment and connected acceptance require the Azure environment and Entra application configuration. |
 | Pre-sales | Local implementation complete: Head of Pre-Sales assignment, tech-lead acceptance, nine-state transition matrix, contributors, deliverable/review/share gates, actual effort, weekly capacity and cost analytics. Connected-scale acceptance remains pending. |
 | Reports | Local feature scope complete: date/owner/service/source/country/opportunity-type filters, current pipeline, monthly/quarterly weighted forecast, historical funnel, bottlenecks, blockers, outcomes, loss reasons, erosion, movement, individual performance, role home cards, governed drill-down and CSV/Excel exports. Connected-scale reconciliation remains pending. |
-| Search/scale | Search-specific PostgreSQL indexes/full-text ranking, recent-search history, stale-data/query caching and documented 20k/5k/5k performance acceptance. Universal search and the four main record lists paginate on the server. |
+| Search/scale | PostgreSQL full-text indexes, exact/prefix ranking, filters, pagination, private recent-search history, a bounded board working set and a disposable 20k/5k/5k benchmark harness are implemented. Connected production scale acceptance and caching remain later work. |
 | Notifications | Core local phase complete: preferences, recipient/escalation rules, 15-minute scans, Monday summaries, failure alerts, durable in-app history and automation monitoring are implemented. External email/mobile channels may be added only if later required. |
 | AI | Entire approved Azure adapter, grounded summaries/extraction, consent/review UI and evaluations. No fake AI buttons. |
-| Release quality | Full accessibility contrast/screen-reader audit, visual regression baselines, CI/security scanning, resource limits, image-digest pinning, rotation/retention, restore rehearsal and production deployment. |
+| Release quality | Client demo runbook, keyboard semantics, visible focus/reduced-motion handling, safe reset/status tools and focused release acceptance are included. Formal screen-reader/contrast certification, visual baselines, restore rehearsal and production hardening remain later work. |
 
 ## Architectural decisions
 
 1. Standalone ATPLCRM codebase. No imports, runtime calls or shared platform dependencies.
 2. FastAPI and SQLAlchemy provide the API and persistence layer; Alembic controls schema changes. PostgreSQL remains the system of record, with Redis/Celery for scheduled reminders. Kafka will be introduced only when a real cross-service event-stream requirement exists.
 3. Persistent Pursuit work context with separate one-to-one Lead/Opportunity records preserves linked history during conversion; a converted lead remains closed and traceable.
-4. Values and rates use Decimal in the API/database. The v0.14 management reports calculate authoritative net and weighted values on the server; connected-scale financial reconciliation remains an acceptance gate.
+4. Values and rates use Decimal in the API/database. The v0.15 management reports calculate authoritative net and weighted values on the server; connected-scale financial reconciliation remains an acceptance gate.
 5. Restriction checks apply on the server, including timeline content and the activity feed. SQL triggers protect audit/value history against ordinary UPDATE/DELETE. Separate runtime DB privileges remain pending; an infrastructure administrator can still alter database policy.
 6. Phase boundaries are not all complete: foundation, initial identity/schema and core UI slices were built together for a reviewable local product. Do not describe this as production-ready or PRD-complete.
 

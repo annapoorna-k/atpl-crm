@@ -2249,7 +2249,7 @@ export default function App() {
         <div className="workspace-switch">
           <span className="workspace-icon">A</span>
           <div>
-            ATPL Workspace
+            ATPLCRM Demo
             <small>
               {d.instance === "US" ? "United States" : "International team"}
             </small>
@@ -2280,7 +2280,7 @@ export default function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="workspace-health">
-            <span className="live-dot" /> Local workspace <Badge>v0.13</Badge>
+            <span className="live-dot" /> Local workspace <Badge>v0.15</Badge>
           </div>
           <button className="profile" onClick={() => go("settings")}>
             <Avatar name={d.user.name} />
@@ -2358,7 +2358,7 @@ export default function App() {
           </div>
         </header>
         {notifications && (
-          <section className="notification-panel">
+          <section className="notification-panel" aria-label="Notifications" aria-live="polite">
             <div className="panel-heading">
               <h3>Notifications</h3>
               <span className="notification-actions">
@@ -2409,6 +2409,14 @@ export default function App() {
           </section>
         )}
         <main id="main-content">
+          {d.working_set.truncated && ["pipeline", "leads"].includes(page) && (
+            <div className="working-set-notice" role="status">
+              <Database size={17} />
+              <span>
+                This board shows the {d.working_set.pursuits} most recently updated pursuits. Use the complete list or global search to reach all {d.workspace_counts.pursuits} pursuits.
+              </span>
+            </div>
+          )}
           <div className="page-heading">
             <div>
               <div className="eyebrow">
@@ -2538,7 +2546,7 @@ export default function App() {
           {page === "overview" && (
             <>
               {roleDashboard && (
-                <section className="role-dashboard">
+                <section className="role-dashboard" aria-label={`${roleDashboard.role} dashboard`}>
                   <div>
                     <span>ROLE VIEW</span>
                     <strong>{roleDashboard.role}</strong>
@@ -3807,6 +3815,25 @@ export default function App() {
                     ))}
                   </div>
                 )}
+              </section>
+              <section className="panel">
+                <div className="panel-heading">
+                  <div>
+                    <h2>Access policy</h2>
+                    <p>Your effective role capabilities and protected field rules.</p>
+                  </div>
+                  <Badge tone="yellow">{d.permissions.role}</Badge>
+                </div>
+                <div className="permission-grid">
+                  {d.permissions.capabilities.filter((item) => item.granted).map((item) => (
+                    <div key={item.code}><ShieldCheck size={16}/><span><strong>{item.label}</strong><small>{item.code}</small></span></div>
+                  ))}
+                </div>
+                <div className="permission-rules">
+                  {d.permissions.field_rules.map((rule) => (
+                    <div key={rule.area}><strong>{rule.area}</strong><span>{rule.fields}</span><small>{rule.rule}</small></div>
+                  ))}
+                </div>
               </section>
               <section className="panel">
                 <div className="panel-heading">

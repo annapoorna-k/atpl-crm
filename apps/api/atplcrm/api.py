@@ -17,7 +17,8 @@ from .models import Activity, AppSession, Artifact, ArtifactRecipient, AuditEven
 from .documents import attach_recipients, present as present_artifact, recipient_contacts
 from .references import contract as reference_contract, probability as stage_probability, require_code
 from .schemas import ActivityInput, ArtifactInput, CompanyInput, CompanyPatch, ContactInput, ContactPatch, ConversionInput, DisqualifyInput, LeadInput, LeadStatusInput, LoginInput, NurtureInput, OpportunityPatch, ProbabilityInput, RequestInput, RequestPatch, RestrictionInput, StageInput, TeamInput, ValueInput, WorkInput
-from .security import current_user, delete_session, hash_token, new_session, set_session_cookie, verify_password
+from .security import check_login_throttle, clear_login_failures, current_user, delete_session, hash_token, new_session, record_login_failure, set_session_cookie, verify_password
+from .permissions import permission_contract
 from .services import audit, can_value, can_work, future_date, get_scoped, http_error, money, record_value, require_work, scoped, stamp, utc
 from .settings import Settings, get_settings
 
@@ -86,9 +87,12 @@ def login(payload: LoginInput, request: Request, response: Response, db: Session
     cookie = request.cookies.get(settings.csrf_cookie, "")
     if not cookie or not hmac.compare_digest(supplied, cookie):
         raise http_error(403, "CSRF validation failed.")
+    check_login_throttle(db, str(payload.username), request)
     user = db.scalar(select(User).where(func.lower(User.username) == str(payload.username).lower(), User.is_active.is_(True)).options(selectinload(User.tenant)))
     if not user or not user.tenant or user.tenant.key != settings.tenant_key or not verify_password(payload.password, user.password):
+        record_login_failure(db, str(payload.username), request, settings)
         raise http_error(400, "Check your email and password.")
+    clear_login_failures(db, str(payload.username), request)
     token, app_session = new_session(db, user, settings)
     set_session_cookie(response, token, settings)
     response.set_cookie(settings.csrf_cookie, app_session.csrf_token, max_age=settings.session_hours * 3600, httponly=True, secure=settings.app_mode != "local-demo", samesite="lax", path="/")
@@ -105,9 +109,14 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db), 
 @router.get("/bootstrap/")
 def bootstrap(db: Session = Depends(get_db), user: User = Depends(current_user), settings: Settings = Depends(get_settings)):
     users = db.scalars(select(User).where(User.tenant_id == user.tenant_id, User.is_active.is_(True)).order_by(User.first_name)).all()
-    companies = db.scalars(scoped(db, Company, user).options(selectinload(Company.owner)).order_by(Company.name)).all()
-    contacts = db.scalars(scoped(db, Contact, user).options(selectinload(Contact.company), selectinload(Contact.owner), selectinload(Contact.sourced_by)).order_by(Contact.first_name, Contact.last_name)).all()
-    pursuits = db.scalars(scoped(db, Pursuit, user).options(*user_options())).unique().all()
+    totals = {
+        "companies": db.scalar(select(func.count(Company.id)).where(Company.tenant_id == user.tenant_id, Company.is_deleted.is_(False))) or 0,
+        "contacts": db.scalar(select(func.count(Contact.id)).where(Contact.tenant_id == user.tenant_id, Contact.is_deleted.is_(False))) or 0,
+        "pursuits": db.scalar(select(func.count(Pursuit.id)).where(Pursuit.tenant_id == user.tenant_id, Pursuit.is_deleted.is_(False))) or 0,
+    }
+    companies = db.scalars(scoped(db, Company, user).options(selectinload(Company.owner)).order_by(Company.updated_at.desc(), Company.name).limit(settings.bootstrap_company_limit)).all()
+    contacts = db.scalars(scoped(db, Contact, user).options(selectinload(Contact.company), selectinload(Contact.owner), selectinload(Contact.sourced_by)).order_by(Contact.updated_at.desc(), Contact.first_name, Contact.last_name).limit(settings.bootstrap_contact_limit)).all()
+    pursuits = db.scalars(scoped(db, Pursuit, user).options(*user_options()).order_by(Pursuit.updated_at.desc()).limit(settings.bootstrap_pursuit_limit)).unique().all()
     leads = [item.lead for item in pursuits if item.lead]
     opportunities = [item.opportunity for item in pursuits if item.opportunity]
     requests = db.scalars(scoped(db, PreSalesRequest, user).options(*request_options())).unique().all()
@@ -120,7 +129,7 @@ def bootstrap(db: Session = Depends(get_db), user: User = Depends(current_user),
     working_calendar = db.scalar(scoped(db, WorkingCalendar, user))
     admin_users = db.scalars(select(User).where(User.tenant_id == user.tenant_id).order_by(User.is_active.desc(), User.first_name, User.last_name)).all() if user.level == "Administrator" else []
     admin_references = db.scalars(scoped(db, WorkspaceReference, user).order_by(WorkspaceReference.category, WorkspaceReference.sort_order, WorkspaceReference.label)).all() if user.level == "Administrator" else []
-    return {"user": out.person(user), "instance": settings.instance_type, "mode": settings.app_mode, "today": date.today(), "users": [out.person(item) for item in users], "admin_users": [out.person(item) for item in admin_users], "admin_references": [{"id": str(item.id), "category": item.category, "code": item.code, "label": item.label, "numeric_value": item.numeric_value, "sort_order": item.sort_order, "active": item.active} for item in admin_references], "commercial_settings": {"partner_share_warning_pct": str(commercial_setting.partner_share_warning_pct if commercial_setting else 40), "fx_movement_notice_pct": str(commercial_setting.fx_movement_notice_pct if commercial_setting else 5)}, "working_calendar": {"working_weekdays": working_calendar.working_weekdays if working_calendar else [0,1,2,3,4], "holidays": working_calendar.holidays if working_calendar else []}, "companies": [out.company(item) for item in companies], "contacts": [out.contact(db, item) for item in contacts], "leads": [out.lead(db, item, user) for item in leads], "opportunities": [out.opportunity(db, item, user) for item in opportunities], "requests": [out.request(item) for item in requests], "activities": [out.activity(item) for item in activities], "notifications": [{"id": str(item.id), "message": item.message, "category": item.category, "severity": item.severity, "read": item.read, "read_at": item.read_at, "pursuit_id": str(item.pursuit_id) if item.pursuit_id else None, "created_at": item.created_at} for item in notifications], "reference": references}
+    return {"user": out.person(user), "permissions": permission_contract(user), "instance": settings.instance_type, "mode": settings.app_mode, "today": date.today(), "workspace_counts": totals, "working_set": {"companies": len(companies), "contacts": len(contacts), "pursuits": len(pursuits), "truncated": totals["companies"] > len(companies) or totals["contacts"] > len(contacts) or totals["pursuits"] > len(pursuits)}, "users": [out.person(item) for item in users], "admin_users": [out.person(item) for item in admin_users], "admin_references": [{"id": str(item.id), "category": item.category, "code": item.code, "label": item.label, "numeric_value": item.numeric_value, "sort_order": item.sort_order, "active": item.active} for item in admin_references], "commercial_settings": {"partner_share_warning_pct": str(commercial_setting.partner_share_warning_pct if commercial_setting else 40), "fx_movement_notice_pct": str(commercial_setting.fx_movement_notice_pct if commercial_setting else 5)}, "working_calendar": {"working_weekdays": working_calendar.working_weekdays if working_calendar else [0,1,2,3,4], "holidays": working_calendar.holidays if working_calendar else []}, "companies": [out.company(item) for item in companies], "contacts": [out.contact(db, item) for item in contacts], "leads": [out.lead(db, item, user) for item in leads], "opportunities": [out.opportunity(db, item, user) for item in opportunities], "requests": [out.request(item) for item in requests], "activities": [out.activity(item) for item in activities], "notifications": [{"id": str(item.id), "message": item.message, "category": item.category, "severity": item.severity, "read": item.read, "read_at": item.read_at, "pursuit_id": str(item.pursuit_id) if item.pursuit_id else None, "created_at": item.created_at} for item in notifications], "reference": references}
 
 
 @router.post("/companies/", status_code=201)
@@ -227,7 +236,7 @@ def update_lead_status(identifier: UUID, payload: LeadStatusInput, db: Session =
 @router.post("/leads/{identifier}/disqualify/")
 def disqualify_lead(identifier: UUID, payload: DisqualifyInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
     lead = lead_record(db, user, identifier); pursuit = lead.pursuit
-    if user.level not in {"Manager", "Executive"} or user.id in {pursuit.sourced_by_id, pursuit.owner_id}: raise http_error(403, "An independent Manager or Executive must disqualify this lead. Route it to: " + (", ".join(x.display_name for x in eligible_validators(db,pursuit)) or "no currently eligible validator"))
+    if user.level not in MANAGEMENT or user.id in {pursuit.sourced_by_id, pursuit.owner_id}: raise http_error(403, "An independent Manager, Executive or Administrator must disqualify this lead. Route it to: " + (", ".join(x.display_name for x in eligible_validators(db,pursuit)) or "no currently eligible validator"))
     require_code(db, user, "disqualification_reasons", payload.reason, "reason")
     lead.status, lead.outcome, lead.reason = "closed", "Disqualified", payload.reason; pursuit.version += 1; audit(db, user, "Lead disqualified", pursuit, payload.reason); db.commit()
     return out.lead(db, load_pursuit(db, user, pursuit.id).lead, user)
@@ -250,7 +259,7 @@ def lead_validators(identifier: UUID, db: Session=Depends(get_db), user: User=De
 @router.post("/leads/{identifier}/convert/")
 def convert_lead(identifier: UUID, payload: ConversionInput, db: Session = Depends(get_db), user: User = Depends(current_user), settings: Settings = Depends(get_settings)):
     lead = lead_record(db, user, identifier); pursuit = lead.pursuit
-    if user.level not in {"Manager", "Executive"}: raise http_error(403, "A Manager or Executive must validate this lead.")
+    if user.level not in MANAGEMENT: raise http_error(403, "A Manager, Executive or Administrator must validate this lead.")
     if user.id in {pursuit.sourced_by_id, pursuit.owner_id}: raise http_error(403, "Self-validation is not allowed. Route this lead to: " + (", ".join(x.display_name for x in eligible_validators(db,pursuit)) or "no currently eligible validator"))
     if lead.converted_opportunity: return out.opportunity(db, lead.converted_opportunity, user)
     if lead.status != "ready": raise http_error(422, "Submit the lead for validation first.")
@@ -374,7 +383,7 @@ def update_value(identifier: UUID, payload: ValueInput, db: Session = Depends(ge
 
 @router.post("/opportunities/{identifier}/restriction/")
 def update_restriction(identifier: UUID, payload: RestrictionInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    if user.level not in {"Manager", "Executive"}: raise http_error(403, "A Manager or Executive must change value restrictions.")
+    if user.level not in MANAGEMENT: raise http_error(403, "A Manager, Executive or Administrator must change value restrictions.")
     opportunity = load_opportunity(db, user, identifier); opportunity.restricted, opportunity.restriction_reason = payload.restricted, payload.reason; audit(db, user, "Value visibility changed", opportunity.pursuit, payload.reason, after={"restricted": payload.restricted}); db.commit()
     return out.opportunity(db, load_opportunity(db, user, identifier), user)
 
@@ -399,7 +408,7 @@ def assign_team(identifier: UUID, payload: TeamInput, db: Session = Depends(get_
 
 @router.post("/opportunities/{identifier}/probability/")
 def update_probability(identifier: UUID, payload: ProbabilityInput, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    if user.level not in {"Manager", "Executive"}: raise http_error(403, "A Manager or Executive must override probability.")
+    if user.level not in MANAGEMENT: raise http_error(403, "A Manager, Executive or Administrator must override probability.")
     opportunity = load_opportunity(db, user, identifier); before = {"probability": opportunity.probability, "stage_default": opportunity.probability_stage_default}; opportunity.probability, opportunity.probability_note = payload.probability, payload.reason; audit(db, user, "Probability overridden", opportunity.pursuit, payload.reason, before=before, after={"probability": payload.probability, "stage_default": opportunity.probability_stage_default}); db.commit()
     return out.opportunity(db, load_opportunity(db, user, identifier), user)
 

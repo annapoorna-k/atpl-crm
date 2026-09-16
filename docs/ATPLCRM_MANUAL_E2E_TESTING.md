@@ -1,6 +1,6 @@
-# ATPLCRM v0.14 Manual End-to-End Testing Handbook
+# ATPLCRM v0.15 Manual End-to-End Testing Handbook
 
-**Document purpose:** manually validate every function implemented through ATPLCRM v0.14 before starting another feature.
+**Document purpose:** manually validate every function implemented through ATPLCRM v0.15 before starting another feature.
 **Audience:** business testers, administrators, sales users, pre-sales users and release reviewers.
 **Execution date:** ____________________  **Tester:** ____________________  **Build/commit:** ____________________
 **Environment:** ☐ International  ☐ US  **Result:** ☐ Pass  ☐ Pass with observations  ☐ Fail
@@ -11,7 +11,7 @@
 
 ![ATPLCRM login](manual-testing/screenshots/01-login.png)
 
-ATPLCRM v0.14 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
+ATPLCRM v0.15 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
 
 ```mermaid
 flowchart LR
@@ -30,9 +30,9 @@ Every pursuit has one commercial owner, one Ball in Court holder, one next actio
 
 ## 2. Scope boundary
 
-This handbook tests what exists in **v0.14**. The following connected services still require Azure tenant configuration and must not be reported as local defects merely because the external service is absent:
+This handbook tests what exists in **v0.15**. The following connected services still require Azure tenant configuration and must not be reported as local defects merely because the external service is absent:
 
-| Area | Current v0.14 boundary |
+| Area | Current v0.15 boundary |
 |---|---|
 | Identity | Local password sign-in only; Microsoft Entra/OIDC is planned. |
 | Authorization | Current owner/team/management rules are testable; a fine-grained policy editor is planned. |
@@ -41,8 +41,8 @@ This handbook tests what exists in **v0.14**. The following connected services s
 | Commercial | Partner terms, net values, fixed exchange rates, rate refresh/re-baseline and close/handoff fields are included locally. |
 | Pre-sales | Complete assignment, nine-state lifecycle, contributors, review/share evidence, effort, weekly capacity and cost reporting work locally. |
 | Reports | Role home dashboards and complete filtered management analytics work locally, with record drill-down and CSV/Excel exports. Connected-scale reconciliation remains pending. |
-| AI | No AI provider or simulated AI feature exists in v0.14. |
-| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.14. |
+| AI | No AI provider or simulated AI feature exists in v0.15. |
+| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.15. |
 
 If a current control fails inside these boundaries, record a defect. If Azure tenant connectivity is unavailable, record the connected-only step as **Environment not configured** and still test its local API/UI equivalent.
 

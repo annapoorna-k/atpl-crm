@@ -98,11 +98,12 @@ def test_standard_user_cannot_self_validate_a_ready_lead(client):
 def test_manager_conversion_is_idempotent_and_preserves_identity(client):
     csrf = login(client)
     data = client.get("/api/v1/bootstrap/").json()
-    lead = next(item for item in data["leads"] if item["status"] == "ready")
+    lead = next(item for item in data["leads"] if item["name"] == "AI readiness assessment" and item["status"] == "ready")
+    primary_contact = next(item for item in data["contacts"] if item["company_id"] == lead["company_id"])
     payload = {
         "customer_need": "Establish a governed AI roadmap",
         "scope_summary": "Assessment and prioritized plan",
-        "primary_contact": data["contacts"][0]["id"],
+        "primary_contact": primary_contact["id"],
         "current_value": "25000",
         "currency": "USD",
         "service_line": data["reference"]["services"][0][0],

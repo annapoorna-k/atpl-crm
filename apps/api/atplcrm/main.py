@@ -12,9 +12,10 @@ from .notifications import router as notifications_router
 from .commercial import router as commercial_router
 from .documents import router as documents_router
 from .reporting import router as reporting_router
+from .permissions import router as permissions_router
 from .database import engine
 
-app = FastAPI(title="ATPLCRM API", version="0.14.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+app = FastAPI(title="ATPLCRM API", version="0.15.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
 app.include_router(router)
 app.include_router(admin_router)
 app.include_router(data_router)
@@ -24,6 +25,7 @@ app.include_router(notifications_router)
 app.include_router(commercial_router)
 app.include_router(documents_router)
 app.include_router(reporting_router)
+app.include_router(permissions_router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -49,4 +51,4 @@ async def security_headers(request: Request, call_next):
 def health():
     with Session(engine) as db:
         db.execute(text("SELECT 1"))
-    return {"status": "ok", "application": "ATPLCRM", "framework": "FastAPI"}
+    return {"status": "ok", "application": "ATPLCRM", "framework": "FastAPI", "version": app.version}

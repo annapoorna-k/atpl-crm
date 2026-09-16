@@ -14,7 +14,7 @@ The former plan incorrectly named Django and several libraries that are not used
 
 This plan has two explicit views:
 
-1. **As-built baseline (v0.7):** functionality already present and testable in local Docker.
+1. **As-built baseline (v0.15):** functionality already present and testable in local Docker.
 2. **Target state and remaining roadmap:** work required for the complete requirements and an Azure production release.
 
 ## 2. Truth at a glance
@@ -22,7 +22,7 @@ This plan has two explicit views:
 | Area | Correct position |
 |---|---|
 | Product boundary | Independent ATPLCRM repository at `/Users/n22/Desktop/ATPLCRM`; no Orbit dependency |
-| Current release | v0.14 working core with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality, pre-sales and documents/email phases complete locally |
+| Current release | v0.15 client-demo-ready local release with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality, pre-sales and documents/email phases complete locally |
 | Web application | React 19, TypeScript, Vite, custom responsive CSS, Lucide icons |
 | API | FastAPI 0.135, Pydantic, modular-monolith domain services |
 | Persistence | PostgreSQL 17, SQLAlchemy 2, Alembic migrations, decimal financial values |
@@ -54,7 +54,7 @@ The functional domains are:
 - Azure OpenAI assistance for grounded summaries, extraction and suggestions with explicit human confirmation.
 - Administration, configuration parity, monitoring, backup, restore, migration and operational runbooks.
 
-## 4. As-built v0.7 architecture
+## 4. As-built v0.15 architecture
 
 The current application is a modular monolith. This keeps conversion, audit, financial and authorization changes inside one PostgreSQL transaction boundary while the product is still growing.
 
@@ -97,7 +97,7 @@ ATPLCRM/
 
 Future Azure infrastructure belongs under `infra/azure/` as Bicep modules and environment parameter files. Microsoft adapters belong under `apps/api/atplcrm/integrations/`; the Outlook add-in can be a separate `apps/outlook-addin/` package. These are target additions, not present-day folders.
 
-## 5. What v0.7 already provides
+## 5. What v0.15 already provides
 
 ### Access, security and administration
 
@@ -242,7 +242,7 @@ Settings are typed and validated at startup. Environment files contain local val
 
 ## 13. Phased implementation roadmap
 
-### Phase A — Preserve and document the current v0.7 baseline (complete)
+### Phase A — Preserve and document the current v0.15 baseline (complete)
 
 **Delivered:** independent repository, branded responsive UI, FastAPI/PostgreSQL core, local Docker, users/configuration, import/data quality, core lead/opportunity workflow, accessible pipeline, lifecycle milestones, work queues and durable notification automation.
 
@@ -292,7 +292,7 @@ Settings are typed and validated at startup. Environment files contain local val
 
 **Dependencies:** commercial rules and reliable historical events.
 
-**Delivered locally in v0.14:** monthly/quarterly pipeline and forecast, historical funnel, loss/blocker/value-erosion/partner/movement analysis, individual contribution, role dashboards, record drill-down and complete server-side CSV/Excel report exports. **Remaining in this phase:** ranked PostgreSQL full-text search, connected-scale reconciliation and sanitized regional configuration comparison.
+**Delivered locally in v0.15:** monthly/quarterly pipeline and forecast, historical funnel, loss/blocker/value-erosion/partner/movement analysis, individual contribution, role dashboards, record drill-down and complete server-side CSV/Excel report exports. **Remaining in this phase:** connected-scale reconciliation, caching if measurements justify it, and sanitized regional configuration comparison.
 
 **Exit:** drill-down totals reconcile with independently calculated fixtures; permissions apply to aggregates and exports; the weekly leadership review requires no side spreadsheet.
 
@@ -354,7 +354,7 @@ Settings are typed and validated at startup. Environment files contain local val
 
 ## 17. Planning range and checkpoints
 
-The completed v0.7 baseline removes the original foundation and core workflow build from the remaining estimate. A reasonable planning range for the remaining full scope is **36–54 sequential engineering working days**, excluding delays for Azure/Entra/Graph access, security review, stakeholder decisions and production migration windows. Parallel frontend/backend/platform work can reduce calendar duration; use phase exit evidence rather than dates to declare completion.
+The completed v0.15 baseline removes the original foundation and core workflow build from the remaining estimate. A reasonable planning range for the remaining full scope is **36–54 sequential engineering working days**, excluding delays for Azure/Entra/Graph access, security review, stakeholder decisions and production migration windows. Parallel frontend/backend/platform work can reduce calendar duration; use phase exit evidence rather than dates to declare completion.
 
 | Checkpoint | Demonstrable outcome |
 |---|---|
@@ -383,4 +383,4 @@ The completed v0.7 baseline removes the original foundation and core workflow bu
 - WCAG 2.2: https://www.w3.org/TR/WCAG22/
 - OWASP Application Security Verification Standard: https://owasp.org/www-project-application-security-verification-standard/
 
-The business scope remains Soothsayer CRM Requirements v4.0 supplied by the user. Implementation status and requirement traceability in this repository are the authority for claims about what v0.7 currently provides.
+The business scope remains Soothsayer CRM Requirements v4.0 supplied by the user. Implementation status and requirement traceability in this repository are the authority for claims about what v0.15 currently provides.

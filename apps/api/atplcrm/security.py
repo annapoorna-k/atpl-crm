@@ -8,7 +8,7 @@ from pwdlib import PasswordHash
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 from .database import get_db
-from .models import AppSession, User
+from .models import AppSession, LoginThrottle, User
 from .settings import Settings, get_settings
 
 password_hash = PasswordHash.recommended()
@@ -34,6 +34,39 @@ def verify_password(plain: str, encoded: str) -> bool:
         return password_hash.verify(plain, encoded)
     except Exception:
         return False
+
+
+def login_key(username: str, request: Request) -> str:
+    address = request.client.host if request.client else "unknown"
+    return hashlib.sha256(f"{username.strip().casefold()}|{address}".encode()).hexdigest()
+
+
+def check_login_throttle(db: Session, username: str, request: Request) -> None:
+    item = db.get(LoginThrottle, login_key(username, request))
+    now = datetime.now(timezone.utc)
+    if item and item.blocked_until and utc(item.blocked_until) > now:
+        seconds = max(1, int((utc(item.blocked_until) - now).total_seconds()))
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many sign-in attempts. Try again later.", headers={"Retry-After": str(seconds)})
+
+
+def record_login_failure(db: Session, username: str, request: Request, settings: Settings) -> None:
+    key = login_key(username, request); now = datetime.now(timezone.utc)
+    statement = select(LoginThrottle).where(LoginThrottle.key_hash == key)
+    if db.bind and db.bind.dialect.name != "sqlite": statement = statement.with_for_update()
+    item = db.scalar(statement)
+    if not item:
+        item = LoginThrottle(key_hash=key, failures=0, window_started_at=now); db.add(item)
+    if (now - utc(item.window_started_at)).total_seconds() > settings.login_window_minutes * 60:
+        item.failures = 0; item.window_started_at = now; item.blocked_until = None
+    item.failures += 1
+    if item.failures >= settings.login_max_failures:
+        item.blocked_until = now + timedelta(minutes=settings.login_block_minutes)
+    db.commit()
+
+
+def clear_login_failures(db: Session, username: str, request: Request) -> None:
+    item = db.get(LoginThrottle, login_key(username, request))
+    if item: db.delete(item); db.commit()
 
 
 def new_session(db: Session, user: User, settings: Settings) -> tuple[str, AppSession]:

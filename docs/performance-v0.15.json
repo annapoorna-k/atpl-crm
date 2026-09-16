@@ -1,0 +1,40 @@
+{
+  "instance": "INTERNATIONAL",
+  "results": [
+    {
+      "check": "Board/bootstrap working set",
+      "seconds": 1.093,
+      "target_seconds": 2.0,
+      "passed": true,
+      "records": 10013
+    },
+    {
+      "check": "Contact list",
+      "seconds": 0.565,
+      "target_seconds": 2.0,
+      "passed": true,
+      "records": 20006
+    },
+    {
+      "check": "Opportunity list",
+      "seconds": 0.26,
+      "target_seconds": 2.0,
+      "passed": true,
+      "records": 5007
+    },
+    {
+      "check": "Ranked broad search",
+      "seconds": 2.297,
+      "target_seconds": 3.5,
+      "passed": true,
+      "records": 31000
+    },
+    {
+      "check": "Full management report",
+      "seconds": 8.743,
+      "target_seconds": 10.0,
+      "passed": true,
+      "records": 10013
+    }
+  ]
+}

@@ -35,15 +35,26 @@ def upgrade():
         if name not in request_columns:
             op.add_column("crm_presalesrequest", column)
     op.execute("UPDATE crm_presalesrequest SET requested_by_id = created_by_id WHERE requested_by_id IS NULL")
-    op.create_foreign_key("crm_presalesrequest_requested_by_fk", "crm_presalesrequest", "crm_user", ["requested_by_id"], ["id"], ondelete="RESTRICT")
-    op.create_foreign_key("crm_presalesrequest_approved_by_fk", "crm_presalesrequest", "crm_user", ["approved_by_id"], ["id"], ondelete="RESTRICT")
-    op.create_foreign_key("crm_presalesrequest_artifact_fk", "crm_presalesrequest", "crm_artifact", ["deliverable_artifact_id"], ["id"], ondelete="RESTRICT")
+    inspector = sa.inspect(bind)
+    foreign_columns = {tuple(item.get("constrained_columns") or []) for item in inspector.get_foreign_keys("crm_presalesrequest")}
+    for name, column, target in (
+        ("crm_presalesrequest_requested_by_fk", "requested_by_id", "crm_user"),
+        ("crm_presalesrequest_approved_by_fk", "approved_by_id", "crm_user"),
+        ("crm_presalesrequest_artifact_fk", "deliverable_artifact_id", "crm_artifact"),
+    ):
+        if (column,) not in foreign_columns:
+            op.create_foreign_key(name, "crm_presalesrequest", target, [column], ["id"], ondelete="RESTRICT")
     op.alter_column("crm_presalesrequest", "assigned_to_id", existing_type=sa.BigInteger(), nullable=True)
     op.alter_column("crm_presalesrequest", "requested_by_id", existing_type=sa.BigInteger(), nullable=False)
-    op.create_index("ix_crm_presalesrequest_requested_by_id", "crm_presalesrequest", ["requested_by_id"])
-    op.create_index("ix_crm_presalesrequest_assigned_to_id", "crm_presalesrequest", ["assigned_to_id"])
-    op.create_index("ix_crm_presalesrequest_status", "crm_presalesrequest", ["status"])
-    op.create_index("ix_crm_presalesrequest_needed_by", "crm_presalesrequest", ["needed_by"])
+    index_names = {item["name"] for item in sa.inspect(bind).get_indexes("crm_presalesrequest")}
+    for name, column in (
+        ("ix_crm_presalesrequest_requested_by_id", "requested_by_id"),
+        ("ix_crm_presalesrequest_assigned_to_id", "assigned_to_id"),
+        ("ix_crm_presalesrequest_status", "status"),
+        ("ix_crm_presalesrequest_needed_by", "needed_by"),
+    ):
+        if name not in index_names:
+            op.create_index(name, "crm_presalesrequest", [column])
 
     if "crm_presalescontributor" not in inspector.get_table_names():
         op.create_table(

@@ -22,6 +22,15 @@ type SearchResult = {
   status: string;
   owner: string;
   route: string;
+  rank: number;
+};
+type RecentSearch = {
+  id: string;
+  query: string;
+  entity_type: string;
+  filters: { owner_id: number | null; status_filter: string; country: string };
+  use_count: number;
+  last_used_at: string;
 };
 type ImportError = { row: number; field: string; message: string };
 type ImportWarning = ImportError & { record_id: string; confidence: number };
@@ -181,8 +190,13 @@ export function DataTools({
   const [searchText, setSearchText] = useState("");
   const [searchType, setSearchType] = useState("all");
   const [owner, setOwner] = useState("");
+  const [searchCountry, setSearchCountry] = useState("");
+  const [searchStatus, setSearchStatus] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searchTotal, setSearchTotal] = useState(0);
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchPages, setSearchPages] = useState(1);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [entity, setEntity] = useState("companies");
   const [filename, setFilename] = useState("");
   const [csvText, setCsvText] = useState("");
@@ -219,29 +233,58 @@ export function DataTools({
     setQuality(qualityData);
   };
   useEffect(() => {
-    refreshInsights().catch((error) => notify((error as Error).message));
+    if (canManage) refreshInsights().catch((error) => notify((error as Error).message));
+    api<RecentSearch[]>("data/search/recent/").then(setRecentSearches).catch((error) => notify((error as Error).message));
   }, []);
 
-  async function search(event: FormEvent) {
-    event.preventDefault();
-    if (searchText.trim().length < 2) return;
+  async function runSearch(
+    query = searchText,
+    type = searchType,
+    ownerId = owner,
+    country = searchCountry,
+    status = searchStatus,
+    requestedPage = 1,
+    remember = true,
+  ) {
+    if (query.trim().length < 2) return;
     setBusy(true);
     try {
       const params = new URLSearchParams({
-        q: searchText,
-        entity_type: searchType,
+        q: query,
+        entity_type: type,
+        page: String(requestedPage),
       });
-      if (owner) params.set("owner_id", owner);
-      const response = await api<{ total: number; results: SearchResult[] }>(
+      if (ownerId) params.set("owner_id", ownerId);
+      if (country) params.set("country", country);
+      if (status) params.set("status_filter", status);
+      const response = await api<{ total: number; page: number; pages: number; results: SearchResult[] }>(
         `data/search/?${params}`,
       );
       setResults(response.results);
       setSearchTotal(response.total);
+      setSearchPage(response.page);
+      setSearchPages(response.pages);
+      if (remember && requestedPage === 1) {
+        await api<RecentSearch>("data/search/recent/", "POST", {
+          query, entity_type: type, owner_id: ownerId ? Number(ownerId) : null,
+          country, status_filter: status,
+        });
+        setRecentSearches(await api<RecentSearch[]>("data/search/recent/"));
+      }
     } catch (error) {
       notify((error as Error).message);
     } finally {
       setBusy(false);
     }
+  }
+  async function search(event: FormEvent) {
+    event.preventDefault();
+    await runSearch();
+  }
+  async function clearRecent() {
+    await api("data/search/recent/", "DELETE");
+    setRecentSearches([]);
+    notify("Recent searches cleared.");
   }
   async function downloadTemplate() {
     const template = await api<{ filename: string; csv_text: string }>(
@@ -434,12 +477,14 @@ export function DataTools({
           ["import", "Import center", Upload],
           ["duplicates", `Duplicates (${duplicates.length})`, Merge],
           ["quality", "Data quality", CheckCircle2],
-        ].map(([key, text, Icon]) => (
+        ].filter(([key]) => key === "search" || canManage).map(([key, text, Icon]) => (
           <button
             key={String(key)}
             className={tab === key ? "active" : ""}
             onClick={() => setTab(String(key))}
             role="tab"
+            aria-selected={tab === key}
+            aria-controls={`data-panel-${key}`}
           >
             <Icon size={17} /> {String(text)}
           </button>
@@ -447,7 +492,7 @@ export function DataTools({
       </div>
 
       {tab === "search" && (
-        <section className="panel data-panel">
+        <section className="panel data-panel" id="data-panel-search" role="tabpanel">
           <div className="panel-heading">
             <div>
               <h2>Search the whole workspace</h2>
@@ -456,6 +501,20 @@ export function DataTools({
               </p>
             </div>
           </div>
+          {recentSearches.length > 0 && (
+            <div className="recent-searches" aria-label="Recent searches">
+              <span>Recent</span>
+              {recentSearches.map((recent) => (
+                <button key={recent.id} type="button" onClick={() => {
+                  const ownerId = recent.filters.owner_id ? String(recent.filters.owner_id) : "";
+                  setSearchText(recent.query); setSearchType(recent.entity_type); setOwner(ownerId);
+                  setSearchCountry(recent.filters.country || ""); setSearchStatus(recent.filters.status_filter || "");
+                  void runSearch(recent.query, recent.entity_type, ownerId, recent.filters.country || "", recent.filters.status_filter || "", 1, false);
+                }}>{recent.query}<small>{recent.entity_type === "all" ? "All records" : label(recent.entity_type)}</small></button>
+              ))}
+              <button type="button" className="text-button" onClick={() => void clearRecent()}>Clear history</button>
+            </div>
+          )}
           <form className="global-search-form" onSubmit={search}>
             <label>
               <span>Search terms</span>
@@ -497,6 +556,19 @@ export function DataTools({
                 ))}
               </select>
             </label>
+            <label>
+              <span>Country</span>
+              <input value={searchCountry} onChange={(event) => setSearchCountry(event.target.value)} placeholder="Any country" />
+            </label>
+            {(searchType === "leads" || searchType === "opportunities") && (
+              <label>
+                <span>{searchType === "leads" ? "Status" : "Stage"}</span>
+                <select value={searchStatus} onChange={(event) => setSearchStatus(event.target.value)}>
+                  <option value="">All</option>
+                  {(searchType === "leads" ? data.reference.lead_statuses : data.reference.stages).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+                </select>
+              </label>
+            )}
             <button className="button primary" disabled={busy}>
               {busy ? (
                 <LoaderCircle className="spin" size={17} />
@@ -507,16 +579,18 @@ export function DataTools({
             </button>
           </form>
           {searchText && (
-            <p className="result-summary">
+            <p className="result-summary" role="status" aria-live="polite">
               {searchTotal} result{searchTotal === 1 ? "" : "s"}
             </p>
           )}
           <div className="search-results">
             {results.map((result) => (
-              <a
+              <button
+                type="button"
                 className="search-result"
-                href={`#${result.route}`}
                 key={`${result.type}-${result.id}`}
+                onClick={() => onOpen(result.type, result.id)}
+                aria-label={`Open ${result.type} ${result.title}`}
               >
                 <span className="result-icon">
                   <Database size={18} />
@@ -530,9 +604,16 @@ export function DataTools({
                   <b>{result.status}</b>
                   <em>{result.owner}</em>
                 </span>
-              </a>
+              </button>
             ))}
           </div>
+          {searchPages > 1 && (
+            <div className="list-pagination" aria-label="Search result pages">
+              <button className="button secondary" disabled={searchPage <= 1 || busy} onClick={() => void runSearch(searchText, searchType, owner, searchCountry, searchStatus, searchPage - 1, false)}>Previous</button>
+              <span>Page {searchPage} of {searchPages}</span>
+              <button className="button secondary" disabled={searchPage >= searchPages || busy} onClick={() => void runSearch(searchText, searchType, owner, searchCountry, searchStatus, searchPage + 1, false)}>Next</button>
+            </div>
+          )}
         </section>
       )}
 

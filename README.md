@@ -14,7 +14,7 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.14, an initial working core**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.15, a client-demo-ready local release**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
@@ -41,7 +41,9 @@ This is **v0.14, an initial working core**, using synthetic data and local passw
 - Complete Won/Lost evidence capture, project and delivery-handoff fields, optional commercial approval evidence and stored stage-default probability beside overrides.
 - Tenant-scoped APIs, session/CSRF protection, non-root app/web containers, persistent database/queue volumes, migration-before-start dependencies.
 
-See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. Relationship histories paginate independently; the dashboard bootstrap API is still intended for the seeded/early dataset, and scale benchmarks remain required.
+See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. Relationship histories paginate independently; the board/bootstrap payload is capped to the 100 most recently updated pursuits at scale; complete server-paginated lists and search remain available.
+
+Before a client presentation, follow the [client demo guide](docs/CLIENT_DEMO_GUIDE.md). The [local performance acceptance](docs/PERFORMANCE_ACCEPTANCE.md) records the disposable 20k/5k/5k benchmark.
 
 Before approving a local release, use the [manual end-to-end testing handbook](docs/ATPLCRM_MANUAL_E2E_TESTING.md). An editable Word copy with embedded UI screenshots is available at `docs/ATPLCRM_v0.8_Manual_E2E_Testing_Handbook.docx`.
 
@@ -79,6 +81,17 @@ Set `FX_RATES_URL` only after approving a published source. The monthly adapter 
 `FX_RATE_SOURCE` records the human-readable source name. A refresh updates the reference table for future opportunities; existing opportunities keep their stored rate until their commercial owner updates one deal or an Administrator confirms re-baselining of an open selected set.
 
 ## Operate
+
+Use the guarded demo operator for health and deliberate reset workflows:
+
+```sh
+python3 scripts/demo.py status --instance INTERNATIONAL
+python3 scripts/demo.py backup --instance INTERNATIONAL
+# destructive, creates a backup first and requires the exact confirmation
+python3 scripts/demo.py reset --instance INTERNATIONAL --confirm RESET-ATPLCRM
+```
+
+Routine container operations:
 
 ```sh
 docker compose logs --tail=100 api worker scheduler

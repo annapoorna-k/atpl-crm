@@ -4,7 +4,7 @@ from conftest import login
 def test_partner_terms_drive_net_value_and_management_reports(client):
     csrf = login(client, "alex@atplcrm.local")
     data = client.get("/api/v1/bootstrap/").json()
-    opportunity = data["opportunities"][0]
+    opportunity = next(row for row in data["opportunities"] if row["name"] == "Predictive maintenance platform")
     owner = data["user"]["id"]
 
     company_response = client.post(
@@ -41,7 +41,8 @@ def test_partner_terms_drive_net_value_and_management_reports(client):
 
 def test_opportunity_rate_change_is_guarded_and_probability_keeps_stage_default(client):
     csrf = login(client, "alex@atplcrm.local")
-    opportunity = client.get("/api/v1/bootstrap/").json()["opportunities"][0]
+    opportunities = client.get("/api/v1/bootstrap/").json()["opportunities"]
+    opportunity = next(row for row in opportunities if row["name"] == "Predictive maintenance platform")
     invalid_rate = client.post(
         f'/api/v1/opportunities/{opportunity["opportunity_id"]}/rate/',
         json={"rate": "1.1", "reason": "USD must stay fixed"},
