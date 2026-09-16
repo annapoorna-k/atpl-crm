@@ -3067,11 +3067,14 @@ export default function App() {
                     );
                     return (
                       <section
-                        className={`kanban-column ${draggedPursuit && page === "pipeline" && draggedPursuit.stage !== key ? "drop-ready" : ""}`}
+                        className={`kanban-column ${draggedPursuit && ((page === "pipeline" && draggedPursuit.stage !== key) || (page === "leads" && draggedPursuit.status !== key && key !== "closed")) ? "drop-ready" : ""} ${draggedPursuit && page === "leads" && key === "closed" ? "drop-disabled" : ""}`}
                         key={key}
                         data-stage={key}
                         onDragOver={(event) => {
-                          if (page === "pipeline" && draggedPursuit?.can_work)
+                          if (
+                            draggedPursuit?.can_work &&
+                            (page === "pipeline" || key !== "closed")
+                          )
                             event.preventDefault();
                         }}
                         onDrop={(event) => {
@@ -3079,11 +3082,18 @@ export default function App() {
                           const pursuitId = event.dataTransfer.getData(
                             "application/x-atplcrm-pursuit",
                           );
-                          const droppedPursuit = d.opportunities.find(
+                          const droppedPursuit = (page === "pipeline" ? d.opportunities : d.leads).find(
                             (item) => item.id === pursuitId,
                           );
                           if (page === "pipeline" && droppedPursuit?.can_work)
                             changeStage(droppedPursuit, key);
+                          else if (
+                            page === "leads" &&
+                            key !== "closed" &&
+                            droppedPursuit?.can_work &&
+                            droppedPursuit.status !== key
+                          )
+                            void mutate(`leads/${droppedPursuit.lead_id}/status/`, { status: key });
                           setDraggedPursuit(null);
                         }}
                       >
@@ -3117,9 +3127,9 @@ export default function App() {
                             <button
                               className={`deal-card ${draggedPursuit?.id === r.id ? "dragging" : ""}`}
                               key={r.id}
-                              draggable={page === "pipeline" && r.can_work}
+                              draggable={r.can_work && (page === "pipeline" || r.status !== "closed")}
                               data-pursuit-id={r.id}
-                              aria-label={`${r.name} · ${page === "pipeline" && r.can_work ? "Drag to move stage or open details" : "Open details"}`}
+                              aria-label={`${r.name} · ${r.can_work && (page === "pipeline" || r.status !== "closed") ? `Drag to move ${page === "pipeline" ? "stage" : "status"} or open details` : "Open details"}`}
                               onDragStart={(event) => {
                                 event.dataTransfer.effectAllowed = "move";
                                 event.dataTransfer.setData(

@@ -165,7 +165,18 @@ textarea::placeholder {
 }
 .sidebar > .brand {
   padding: 0 9px 30px;
+  flex-shrink: 0;
 }
+.sidebar > nav {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #60778c transparent;
+  scrollbar-width: thin;
+}
+.sidebar > nav::-webkit-scrollbar { width: 5px; }
+.sidebar > nav::-webkit-scrollbar-thumb { border-radius: 8px; background: #60778c; }
 .workspace-switch {
   border: 1px solid #ffffff18;
   border-radius: 8px;
@@ -258,6 +269,7 @@ textarea::placeholder {
 .sidebar-bottom {
   margin-top: auto;
   padding-top: 10px;
+  flex-shrink: 0;
 }
 .workspace-health {
   border-top: 1px solid #ffffff12;
@@ -3555,6 +3567,10 @@ td small {
   outline: 2px dashed #e5b834;
   outline-offset: -3px;
   background: #fffdf4;
+}
+.kanban-column.drop-disabled {
+  cursor: not-allowed;
+  opacity: .72;
 }
 .milestone-detail {
   display: grid;
