@@ -44,7 +44,7 @@ This is **v0.16, a client-demo-ready local release**, using synthetic data and l
 
 See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and remaining phases. Relationship histories paginate independently; the board/bootstrap payload is capped to the 100 most recently updated pursuits at scale; complete server-paginated lists and search remain available.
 
-Before a client presentation, follow the [client demo guide](docs/CLIENT_DEMO_GUIDE.md). The [local performance acceptance](docs/PERFORMANCE_ACCEPTANCE.md) records the disposable 20k/5k/5k benchmark.
+Before a client presentation, use the [complete v0.16 demo handbook](docs/ATPLCRM_v0.16_COMPLETE_DEMO_HANDBOOK.md) or its editable Word edition at `docs/ATPLCRM_v0.16_Complete_Client_Demo_Handbook.docx`. The shorter [client demo guide](docs/CLIENT_DEMO_GUIDE.md) remains available as a quick route. The [local performance acceptance](docs/PERFORMANCE_ACCEPTANCE.md) records the disposable 20k/5k/5k benchmark.
 
 Before approving a local release, use the [manual end-to-end testing handbook](docs/ATPLCRM_MANUAL_E2E_TESTING.md). An editable Word copy with embedded UI screenshots is available at `docs/ATPLCRM_v0.8_Manual_E2E_Testing_Handbook.docx`.
 

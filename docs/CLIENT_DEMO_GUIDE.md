@@ -1,10 +1,12 @@
 # ATPLCRM Local Client Demo Guide
 
-**Release:** v0.15 local demo readiness
+**Release:** v0.16 local demo readiness
 
 **Audience:** presenter, administrator and client reviewers
 
 **Deployment:** Docker Compose on the presenter's computer
+
+For the complete screen-by-screen narrative, role walkthroughs and current visuals, use [ATPLCRM v0.16 Complete Client Demo Handbook](ATPLCRM_v0.16_COMPLETE_DEMO_HANDBOOK.md). An editable Word edition is available at `docs/ATPLCRM_v0.16_Complete_Client_Demo_Handbook.docx`.
 
 ## 1. What this demo proves
 
