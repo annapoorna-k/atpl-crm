@@ -267,7 +267,18 @@ def role_home(db: Session = Depends(get_db), user: User = Depends(current_user))
         own = next((row for row in data["performance"] if row["user_id"] == user.id), None) or {}
         cards = [("Opportunities owned", own.get("opportunities_owned", 0), "pipeline", own.get("opportunities_owned_ids", [])), ("Ball in court", own.get("ball_in_court", 0), "work", own.get("ball_in_court_ids", [])), ("Blockers owned", own.get("blockers_owned", 0), "attention", own.get("blockers_owned_ids", [])), ("Leads generated", own.get("leads_generated", 0), "leads", own.get("leads_generated_ids", []))]
         role = "Individual contributor"
-    return {"role": role, "cards": [{"label": label, "value": str(value), "route": route, "record_ids": ids} for label, value, route, ids in cards]}
+    return {
+        "role": role,
+        "cards": [
+            {"label": label, "value": str(value), "route": route, "record_ids": ids}
+            for label, value, route, ids in cards
+        ],
+        "visuals": {
+            "pipeline": data["pipeline"],
+            "forecast_month": data["forecast_month"][:6],
+            "lead_funnel": data["lead_funnel"],
+        },
+    }
 
 
 def export_rows(data: dict, report: str):

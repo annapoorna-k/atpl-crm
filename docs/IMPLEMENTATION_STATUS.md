@@ -1,4 +1,4 @@
-# ATPLCRM v0.15 delivery status
+# ATPLCRM v0.16 delivery status
 
 This release starts the implementation plan and delivers an executable core. It does not mark all phases complete.
 
@@ -29,6 +29,7 @@ This release starts the implementation plan and delivers an executable core. It 
 - Import/data-quality completion: CSV and `.xlsx` dry runs support mapped full-field company/contact/lead imports up to 20,000 rows, within-file and existing-record validation, confirmed fuzzy warnings, durable job results, field-by-field duplicate merges/dismissals and actionable filtered quality reporting.
 - Documents/email completion: private managed uploads, Microsoft 365 links, selected-email metadata and automatic attachment registration, classification, manager approval, named-recipient sharing, company/opportunity registers, version supersession and a reusable searchable asset library.
 - Reporting completion: role-specific home views plus server-calculated pipeline, monthly/quarterly forecast, historical lead funnel, seven-transition bottlenecks, blocker ageing, win/loss, loss reason, value erosion, movement and individual performance reports. Figures drill into governed records and all report datasets export to CSV or Excel.
+- UI demonstration polish: global command search, clickable dashboard forecast/funnel visuals, progressive loading and export states, recent-record shortcuts, preserved list filters and clear return navigation from record details.
 - FastAPI workflow tests, TypeScript/production UI build, plus Docker/PostgreSQL and browser verification as recorded in VERIFICATION.md.
 
 ## Deliberate limits and remaining work
@@ -54,7 +55,7 @@ This release starts the implementation plan and delivers an executable core. It 
 1. Standalone ATPLCRM codebase. No imports, runtime calls or shared platform dependencies.
 2. FastAPI and SQLAlchemy provide the API and persistence layer; Alembic controls schema changes. PostgreSQL remains the system of record, with Redis/Celery for scheduled reminders. Kafka will be introduced only when a real cross-service event-stream requirement exists.
 3. Persistent Pursuit work context with separate one-to-one Lead/Opportunity records preserves linked history during conversion; a converted lead remains closed and traceable.
-4. Values and rates use Decimal in the API/database. The v0.15 management reports calculate authoritative net and weighted values on the server; connected-scale financial reconciliation remains an acceptance gate.
+4. Values and rates use Decimal in the API/database. The v0.16 management reports calculate authoritative net and weighted values on the server; connected-scale financial reconciliation remains an acceptance gate.
 5. Restriction checks apply on the server, including timeline content and the activity feed. SQL triggers protect audit/value history against ordinary UPDATE/DELETE. Separate runtime DB privileges remain pending; an infrastructure administrator can still alter database policy.
 6. Phase boundaries are not all complete: foundation, initial identity/schema and core UI slices were built together for a reviewable local product. Do not describe this as production-ready or PRD-complete.
 

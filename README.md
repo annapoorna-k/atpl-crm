@@ -14,11 +14,12 @@ docker compose up -d --build --wait
 
 Open **http://localhost:8082**. Sign in as **alex@atplcrm.local**. The password is `DEMO_PASSWORD` in `.env`; bootstrap generates it and never commits it. Other demo users use the same local password: `maya` (sales), `james` (pre-sales manager), `omar` (technical), `sarah` (executive), `admin` (administrator), each at `@atplcrm.local`.
 
-This is **v0.15, a client-demo-ready local release**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
+This is **v0.16, a client-demo-ready local release**, using synthetic data and local password sign-in. It is not the complete PRD or a production-ready release. Microsoft sign-in is not yet implemented. `APP_MODE=connected` fails closed for demo password login; do not expose this local-demo stack publicly or use real client data until connected identity and production hardening are delivered.
 
 ## Working features
 
 - Branded responsive overview, My Work, Needs Attention, lead/opportunity boards and lists, company/contact detail, pre-sales queue, role-specific home dashboards, management analytics and read-only configuration overview.
+- Command-style global search with Cmd/Ctrl+K, clickable forecast and lead-funnel visuals, consistent loading/export feedback, recently opened records, preserved list filters and clear detail-to-list navigation.
 - Editable qualified opportunity details and complete company/contact editing, including relationship ownership, source attribution, consent, prescribed engagement status, communication details and do-not-contact control; lead creation, status changes, independent validation, nurture/disqualification and idempotent conversion.
 - Shared pursuit context preserves the original lead, source, contacts, team and timeline while keeping Lead and Opportunity separate objects and board populations.
 - Ball in Court, atomic action completion and future handoff, immutable completed-action history, blocker owner/resolution, optimistic concurrency, stale/overdue flags and client-only interaction tracking.

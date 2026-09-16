@@ -15,7 +15,7 @@ from .reporting import router as reporting_router
 from .permissions import router as permissions_router
 from .database import engine
 
-app = FastAPI(title="ATPLCRM API", version="0.15.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+app = FastAPI(title="ATPLCRM API", version="0.16.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
 app.include_router(router)
 app.include_router(admin_router)
 app.include_router(data_router)

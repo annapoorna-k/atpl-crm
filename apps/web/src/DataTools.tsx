@@ -179,11 +179,13 @@ export function DataTools({
   notify,
   onChanged,
   onOpen,
+  initialSearch = "",
 }: {
   data: Data;
   notify: (message: string) => void;
   onChanged: () => void;
-  onOpen: (type: string, id: string) => void;
+  onOpen: (type: string, id: string, title: string) => void;
+  initialSearch?: string;
 }) {
   const [tab, setTab] = useState("search");
   const [busy, setBusy] = useState(false);
@@ -236,6 +238,14 @@ export function DataTools({
     if (canManage) refreshInsights().catch((error) => notify((error as Error).message));
     api<RecentSearch[]>("data/search/recent/").then(setRecentSearches).catch((error) => notify((error as Error).message));
   }, []);
+  useEffect(() => {
+    if (initialSearch.trim().length < 2) return;
+    setTab("search");
+    setSearchText(initialSearch);
+    void runSearch(initialSearch, "all", "", "", "", 1, false);
+    // Run only when the global-search handoff changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSearch]);
 
   async function runSearch(
     query = searchText,
@@ -589,7 +599,7 @@ export function DataTools({
                 type="button"
                 className="search-result"
                 key={`${result.type}-${result.id}`}
-                onClick={() => onOpen(result.type, result.id)}
+                onClick={() => onOpen(result.type, result.id, result.title)}
                 aria-label={`Open ${result.type} ${result.title}`}
               >
                 <span className="result-icon">
@@ -1108,7 +1118,7 @@ export function DataTools({
                 {quality.issues.map((issue, index) => (
                   <button
                     type="button"
-                    onClick={() => onOpen(issue.type, issue.id)}
+                    onClick={() => onOpen(issue.type, issue.id, issue.name)}
                     key={`${issue.type}-${issue.id}-${index}`}
                   >
                     <span

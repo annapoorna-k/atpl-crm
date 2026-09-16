@@ -102,6 +102,8 @@ export function RecordList({
   const [newHolder, setNewHolder] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState<"csv" | "xlsx" | "">("");
+  const storageKey = `atplcrm-list-${data.user.id}-${entity}`;
   const pursuitList = entity === "leads" || entity === "opportunities";
   const canBulk =
     pursuitList &&
@@ -135,30 +137,51 @@ export function RecordList({
   );
 
   useEffect(() => {
-    setFilters(emptyFilters);
-    setPage(1);
+    let restoredFilters = emptyFilters;
+    let restoredPage = 1;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+      if (saved?.filters) restoredFilters = { ...emptyFilters, ...saved.filters };
+      if (Number(saved?.page) > 0) restoredPage = Number(saved.page);
+    } catch { /* Ignore invalid local navigation state. */ }
+    setFilters(restoredFilters);
+    setPage(restoredPage);
     setSelected([]);
     void api<SavedView[]>(`productivity/views/?entity_type=${entity}`).then(
       setViews,
     );
-    void load(1, emptyFilters);
+    void load(restoredPage, restoredFilters);
     // load is intentionally triggered only when the entity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity]);
+
+  function persist(nextFilters: Filters, nextPage: number) {
+    sessionStorage.setItem(storageKey, JSON.stringify({ filters: nextFilters, page: nextPage }));
+  }
 
   function change(key: keyof Filters, value: string) {
     const next = { ...filters, [key]: value };
     setFilters(next);
     setPage(1);
     setSelected([]);
+    persist(next, 1);
     void load(1, next);
   }
-  function exportList(format: "csv" | "xlsx") {
+  async function exportList(format: "csv" | "xlsx") {
     const params = new URLSearchParams({ export_format: format });
     Object.entries(filters).forEach(([key, value]) => {
       if (value) params.set(key, value);
     });
-    location.href = `/api/v1/productivity/lists/${entity}/?${params}`;
+    setExporting(format);
+    try {
+      const response = await fetch(`/api/v1/productivity/lists/${entity}/?${params}`, { credentials: "same-origin" });
+      if (!response.ok) throw new Error("Export could not be prepared.");
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a"); anchor.href = url; anchor.download = `atplcrm-${entity}.${format}`; anchor.click();
+      URL.revokeObjectURL(url);
+      notify(`${title(entity)} export downloaded.`);
+    } catch (error) { notify((error as Error).message); }
+    finally { setExporting(""); }
   }
   async function saveView() {
     if (!viewName.trim()) return;
@@ -190,6 +213,7 @@ export function RecordList({
     setFilters(next);
     setPage(1);
     setSelected([]);
+    persist(next, 1);
     void load(1, next);
   }
   async function assign() {
@@ -261,8 +285,8 @@ export function RecordList({
           </button>
         )}
         <span className="list-export-actions">
-          <button className="text-button" onClick={() => exportList("csv")}><Download size={13} /> CSV</button>
-          <button className="text-button" onClick={() => exportList("xlsx")}><FileSpreadsheet size={13} /> Excel</button>
+          <button className="text-button" disabled={Boolean(exporting)} onClick={() => void exportList("csv")}>{exporting === "csv" ? <LoaderCircle className="spin" size={13}/> : <Download size={13} />} CSV</button>
+          <button className="text-button" disabled={Boolean(exporting)} onClick={() => void exportList("xlsx")}>{exporting === "xlsx" ? <LoaderCircle className="spin" size={13}/> : <FileSpreadsheet size={13} />} Excel</button>
         </span>
       </div>
       <div className="record-filter-grid">
@@ -383,6 +407,7 @@ export function RecordList({
             setFilters(emptyFilters);
             setPage(1);
             setSelected([]);
+            persist(emptyFilters, 1);
             void load(1, emptyFilters);
           }}
         >
@@ -597,7 +622,8 @@ export function RecordList({
           </button>
         </div>
       )}
-      <div className="table-scroll">
+      <div className={`table-scroll ${busy && result ? "is-refreshing" : ""}`} aria-busy={busy}>
+        {busy && result && <div className="list-progress"><LoaderCircle className="spin" size={15}/> Refreshing records…</div>}
         <table>
           <thead>
             <tr>
@@ -633,9 +659,7 @@ export function RecordList({
             {busy && !result ? (
               <tr>
                 <td colSpan={6}>
-                  <div className="list-loading">
-                    <LoaderCircle className="spin" /> Loading records…
-                  </div>
+                  <div className="list-skeleton" aria-label="Loading records">{Array.from({ length: 5 }, (_, index) => <span key={index}/>)}</div>
                 </td>
               </tr>
             ) : (
@@ -716,6 +740,7 @@ export function RecordList({
             onClick={() => {
               const next = page - 1;
               setPage(next);
+              persist(filters, next);
               void load(next);
             }}
           >
@@ -728,6 +753,7 @@ export function RecordList({
             onClick={() => {
               const next = page + 1;
               setPage(next);
+              persist(filters, next);
               void load(next);
             }}
           >

@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Check,
   CheckCheck,
+  ChevronLeft,
   ChevronDown,
   ChevronRight,
   Clock3,
@@ -23,7 +24,6 @@ import {
   Menu,
   MoreHorizontal,
   Plus,
-  Search,
   Settings2,
   ShieldCheck,
   Sparkles,
@@ -44,6 +44,7 @@ import { DataTools } from "./DataTools";
 import { DocumentCenter } from "./DocumentCenter";
 import { RecordList } from "./RecordList";
 import { ReportsCenter } from "./ReportsCenter";
+import { GlobalSearch, type GlobalSearchResult } from "./GlobalSearch";
 import type {
   Company,
   Contact,
@@ -152,7 +153,13 @@ type FormSpec = {
 type RoleDashboard = {
   role: string;
   cards: { label: string; value: string; route: string; record_ids: string[] }[];
+  visuals: {
+    pipeline: { label: string; count: number; net_value_usd: string; record_ids: string[] }[];
+    forecast_month: { period: string; count: number; weighted_value_usd: string; record_ids: string[] }[];
+    lead_funnel: { stage: string; count: number; record_ids: string[] }[];
+  };
 };
+type RecentRecord = GlobalSearchResult & { opened_at: string };
 function Avatar({ name, small = false }: { name: string; small?: boolean }) {
   return (
     <span className={`avatar ${small ? "small" : ""}`} aria-label={name}>
@@ -183,6 +190,11 @@ function Empty({
       <p>{text}</p>
     </div>
   );
+}
+function Skeleton({ rows = 3 }: { rows?: number }) {
+  return <div className="skeleton-stack" aria-label="Loading" aria-busy="true">
+    {Array.from({ length: rows }, (_, index) => <span key={index} style={{ width: `${92 - index * 9}%` }} />)}
+  </div>;
 }
 function Brand() {
   return (
@@ -490,8 +502,8 @@ export default function App() {
     [detailTab, setDetailTab] = useState("Overview"),
     [notifications, setNotifications] = useState(false),
     [mobile, setMobile] = useState(false),
-    [ownerFilter, setOwnerFilter] = useState("all"),
-    [pipelineView, setPipelineView] = useState("board"),
+    [ownerFilter, setOwnerFilter] = useState(() => sessionStorage.getItem("atplcrm-owner-filter") || "all"),
+    [pipelineView, setPipelineView] = useState(() => sessionStorage.getItem("atplcrm-pipeline-view") || "board"),
     [showLocalCurrency, setShowLocalCurrency] = useState(false),
     [draggedPursuit, setDraggedPursuit] = useState<Pursuit | null>(null),
     [validationRoute, setValidationRoute] = useState<ValidationRoute | null>(
@@ -515,6 +527,9 @@ export default function App() {
     [presalesStatus, setPresalesStatus] = useState("open"),
     [presalesCost, setPresalesCost] = useState<PreSalesCostReport | null>(null),
     [roleDashboard, setRoleDashboard] = useState<RoleDashboard | null>(null),
+    [recentRecords, setRecentRecords] = useState<RecentRecord[]>([]),
+    [globalSearchHandoff, setGlobalSearchHandoff] = useState(""),
+    [returnPage, setReturnPage] = useState(page),
     [relationshipHistory, setRelationshipHistory] =
       useState<ActivityPage | null>(null);
   const detailRef = useRef<HTMLDialogElement>(null);
@@ -579,11 +594,18 @@ export default function App() {
     const handler = () => {
       setPage(location.hash.slice(1) || "overview");
       setQuery("");
-      setOwnerFilter("all");
     };
     window.addEventListener("hashchange", handler);
     return () => window.removeEventListener("hashchange", handler);
   }, []);
+  useEffect(() => sessionStorage.setItem("atplcrm-owner-filter", ownerFilter), [ownerFilter]);
+  useEffect(() => sessionStorage.setItem("atplcrm-pipeline-view", pipelineView), [pipelineView]);
+  useEffect(() => {
+    if (!data) return;
+    try {
+      setRecentRecords(JSON.parse(localStorage.getItem(`atplcrm-recent-${data.user.id}`) || "[]"));
+    } catch { setRecentRecords([]); }
+  }, [data?.user.id]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 4500);
@@ -649,11 +671,21 @@ export default function App() {
     setContactId(null);
     setDetailTab("Overview");
   };
+  const rememberRecent = (record: Omit<RecentRecord, "opened_at">) => {
+    if (!data) return;
+    setRecentRecords((current) => {
+      const next = [{ ...record, opened_at: new Date().toISOString() }, ...current.filter((item) => item.id !== record.id || item.type !== record.type)].slice(0, 6);
+      localStorage.setItem(`atplcrm-recent-${data.user.id}`, JSON.stringify(next));
+      return next;
+    });
+  };
   const openPursuit = (p: Pursuit) => {
+    setReturnPage(page);
     setCompanyId(null);
     setContactId(null);
     setSelected(p.id);
     setDetailTab("Overview");
+    rememberRecent({ type: p.opportunity_id ? "Opportunity" : "Lead", id: p.id, title: p.name, subtitle: p.company, status: p.stage ?? p.status ?? "Active", owner: p.owner, route: p.opportunity_id ? "pipeline" : "leads", rank: 0 });
   };
   const success = () => {
     void load();
@@ -727,6 +759,35 @@ export default function App() {
   const p = all.find((x) => x.id === selected);
   const company = d.companies.find((c) => c.id === companyId),
     contact = d.contacts.find((c) => c.id === contactId);
+  const openCompany = (item: Company) => {
+    setReturnPage(page); setSelected(null); setContactId(null); setCompanyId(item.id); setDetailTab("Overview");
+    rememberRecent({ type: "Company", id: item.id, title: item.name, subtitle: item.industry || item.country, status: item.company_type, owner: item.owner, route: "companies", rank: 0 });
+  };
+  const openContact = (item: Contact) => {
+    setReturnPage(page); setSelected(null); setCompanyId(null); setContactId(item.id); setDetailTab("Overview");
+    rememberRecent({ type: "Contact", id: item.id, title: item.name, subtitle: `${item.job_title} · ${item.company}`, status: item.engagement_status, owner: item.owner, route: "contacts", rank: 0 });
+  };
+  const openGlobalResult = async (result: GlobalSearchResult | RecentRecord) => {
+    if (result.type === "Company") {
+      const item = d.companies.find((row) => row.id === result.id);
+      if (item) { openCompany(item); return; }
+    } else if (result.type === "Contact") {
+      const item = d.contacts.find((row) => row.id === result.id);
+      if (item) { openContact(item); return; }
+    } else {
+      const item = [...d.opportunities, ...d.leads].find((row) => row.id === result.id);
+      if (item) { openPursuit(item); return; }
+    }
+    const entity = result.type === "Company" ? "companies" : result.type === "Contact" ? "contacts" : result.type === "Lead" ? "leads" : "opportunities";
+    try {
+      const response = await api<{ items: (Company | Contact | Pursuit)[] }>(`productivity/lists/${entity}/?q=${encodeURIComponent(result.title)}&page=1&page_size=25`);
+      const item = response.items.find((row) => row.id === result.id);
+      if (item && result.type === "Company") openCompany(item as Company);
+      else if (item && result.type === "Contact") openContact(item as Contact);
+      else if (item) openPursuit(item as Pursuit);
+      else { setGlobalSearchHandoff(result.title); go("data"); }
+    } catch (reason) { setToast((reason as Error).message); }
+  };
   const userOptions = d.users.map(
     (u) => [String(u.id), u.name] as [string, string],
   );
@@ -2280,7 +2341,7 @@ export default function App() {
         </nav>
         <div className="sidebar-bottom">
           <div className="workspace-health">
-            <span className="live-dot" /> Local workspace <Badge>v0.15</Badge>
+            <span className="live-dot" /> Local workspace <Badge>v0.16</Badge>
           </div>
           <button className="profile" onClick={() => go("settings")}>
             <Avatar name={d.user.name} />
@@ -2314,24 +2375,10 @@ export default function App() {
             <strong>{title}</strong>
           </div>
           <div className="topbar-right">
-            <label className="search">
-              <Search size={16} />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search this view…"
-                aria-label="Search this view"
-              />
-              {query && (
-                <button
-                  className="icon-button"
-                  onClick={() => setQuery("")}
-                  aria-label="Clear search"
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </label>
+            <GlobalSearch
+              onOpen={openGlobalResult}
+              onAllResults={(value) => { setGlobalSearchHandoff(value); go("data"); }}
+            />
             <span className="instance">
               <Globe2 size={14} />
               {d.instance === "US" ? "US" : "International"}
@@ -2545,7 +2592,9 @@ export default function App() {
           )}
           {page === "overview" && (
             <>
-              {roleDashboard && (
+              {!roleDashboard ? (
+                <section className="role-dashboard role-dashboard-loading"><div><span>ROLE VIEW</span><strong>Preparing your dashboard</strong></div><Skeleton rows={3}/></section>
+              ) : (
                 <section className="role-dashboard" aria-label={`${roleDashboard.role} dashboard`}>
                   <div>
                     <span>ROLE VIEW</span>
@@ -2669,6 +2718,37 @@ export default function App() {
                   <div className="focus-decoration" />
                 </section>
               </div>
+              {roleDashboard && (
+                <div className="dashboard-visual-grid">
+                  <section className="panel compact-visual">
+                    <div className="panel-heading"><div><h2>Weighted forecast</h2><p>Expected revenue by close month</p></div><button className="text-button" onClick={() => go("reports")}>Full report <ArrowRight size={14}/></button></div>
+                    <div className="forecast-bars">
+                      {roleDashboard.visuals.forecast_month.map((row) => {
+                        const max = Math.max(...roleDashboard.visuals.forecast_month.map((item) => Number(item.weighted_value_usd)), 1);
+                        return <button key={row.period} onClick={() => { const item = row.record_ids.length === 1 ? d.opportunities.find((entry) => entry.id === row.record_ids[0]) : undefined; item ? openPursuit(item) : go("reports"); }}>
+                          <strong>{money(row.weighted_value_usd, "USD", true)}</strong><span><i style={{ height: `${Math.max(8, Number(row.weighted_value_usd) / max * 100)}%` }}/></span><small>{row.period}</small>
+                        </button>;
+                      })}
+                      {!roleDashboard.visuals.forecast_month.length && <Empty title="No forecast yet" text="Set expected close dates to build the trend."/>}
+                    </div>
+                  </section>
+                  <section className="panel compact-visual">
+                    <div className="panel-heading"><div><h2>Lead lifecycle</h2><p>Movement from new conversation to validation</p></div><button className="text-button" onClick={() => go("leads")}>View leads <ArrowRight size={14}/></button></div>
+                    <div className="funnel-bars">
+                      {roleDashboard.visuals.lead_funnel.map((row) => {
+                        const max = Math.max(...roleDashboard.visuals.lead_funnel.map((item) => item.count), 1);
+                        return <button key={row.stage} onClick={() => { const item = row.record_ids.length === 1 ? d.leads.find((entry) => entry.id === row.record_ids[0]) : undefined; item ? openPursuit(item) : go("leads"); }}><span><strong>{row.stage}</strong><small>{row.count}</small></span><i style={{ width: `${Math.max(4, row.count / max * 100)}%` }}/></button>;
+                      })}
+                    </div>
+                  </section>
+                </div>
+              )}
+              {recentRecords.length > 0 && (
+                <section className="panel recent-records">
+                  <div className="panel-heading"><div><h2>Recently opened</h2><p>Continue where you left off</p></div></div>
+                  <div>{recentRecords.map((record) => <button key={`${record.type}-${record.id}`} onClick={() => openGlobalResult(record)}><span><small>{record.type}</small><strong>{record.title}</strong><em>{record.subtitle}</em></span><ChevronRight size={17}/></button>)}</div>
+                </section>
+              )}
               <section className="panel">
                 <div className="panel-heading">
                   <div>
@@ -2920,7 +3000,7 @@ export default function App() {
                 )}
               </>
             ) : (
-              <LoaderCircle className="spin" />
+              <Skeleton rows={5} />
             ))}
           {(page === "pipeline" || page === "leads") && (
             <>
@@ -3119,7 +3199,7 @@ export default function App() {
               data={d}
               notify={setToast}
               onChanged={() => void load()}
-              onOpen={(item) => setCompanyId((item as Company).id)}
+              onOpen={(item) => openCompany(item as Company)}
             />
           )}
           {page === "contacts" && (
@@ -3128,7 +3208,7 @@ export default function App() {
               data={d}
               notify={setToast}
               onChanged={() => void load()}
-              onOpen={(item) => setContactId((item as Contact).id)}
+              onOpen={(item) => openContact(item as Contact)}
             />
           )}
           {page === "documents" && (
@@ -3862,22 +3942,12 @@ export default function App() {
           {page === "data" && (
             <DataTools
               data={d}
+              initialSearch={globalSearchHandoff}
               notify={setToast}
               onChanged={() => void load()}
-              onOpen={(type, id) => {
-                if (type === "Company") {
-                  setCompanyId(id);
-                  setContactId(null);
-                  setSelected(null);
-                } else if (type === "Contact") {
-                  setContactId(id);
-                  setCompanyId(null);
-                  setSelected(null);
-                } else {
-                  setSelected(id);
-                  setCompanyId(null);
-                  setContactId(null);
-                }
+              onOpen={(type, id, recordTitle) => {
+                const result = { type, id, title: recordTitle, subtitle: "", status: "", owner: "", route: "", rank: 0 } as GlobalSearchResult;
+                void openGlobalResult(result);
               }}
             />
           )}
@@ -3900,6 +3970,7 @@ export default function App() {
           aria-labelledby="detail-title"
         >
           <div className="detail-top">
+            <button className="detail-back" onClick={closeDetail}><ChevronLeft size={16}/> Back to {returnPage === "overview" ? "overview" : title}</button>
             <span className="eyebrow">
               {p
                 ? p.opportunity_id
