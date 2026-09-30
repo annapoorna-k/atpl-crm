@@ -1,6 +1,6 @@
 # ATPLCRM v0.16 delivery status
 
-This release starts the implementation plan and delivers an executable core. It does not mark all phases complete.
+This release is the executable v0.16 local client-demo baseline. Local business workflows are broadly complete; connected identity, Microsoft/Azure adapters, production controls and AI remain later phases.
 
 ## Delivered in the initial increment
 
@@ -16,7 +16,7 @@ This release starts the implementation plan and delivers an executable core. It 
 - Server-side pagination, filtering and sorting for the four main record lists, plus private saved views for each user.
 - Manager bulk owner/Ball-in-Court assignment with audit history and optimistic conflict handling.
 - Opportunity stakeholder add, role edit and removal workflows, restricted to same-company contacts and protecting the primary contact.
-- Pipeline drag-and-drop with accessible select fallback, evidence capture, locked/version-protected stage transitions and automatic lifecycle timestamps.
+- Lead active-status and opportunity-stage drag-and-drop with accessible select fallbacks, evidence capture, locked/version-protected stage transitions and automatic lifecycle timestamps.
 - Atomic action completion that preserves immutable history and requires a new owner, action, type and future due date.
 - Seven milestone pursuit timeline, configurable tenant working calendar and aggregate count/median working-day health report.
 - Complete lead/opportunity filters, explicit alternate-validator routing, editable qualified opportunity fields and management stage-movement analysis.
@@ -29,7 +29,7 @@ This release starts the implementation plan and delivers an executable core. It 
 - Import/data-quality completion: CSV and `.xlsx` dry runs support mapped full-field company/contact/lead imports up to 20,000 rows, within-file and existing-record validation, confirmed fuzzy warnings, durable job results, field-by-field duplicate merges/dismissals and actionable filtered quality reporting.
 - Documents/email completion: private managed uploads, Microsoft 365 links, selected-email metadata and automatic attachment registration, classification, manager approval, named-recipient sharing, company/opportunity registers, version supersession and a reusable searchable asset library.
 - Reporting completion: role-specific home views plus server-calculated pipeline, monthly/quarterly forecast, historical lead funnel, seven-transition bottlenecks, blocker ageing, win/loss, loss reason, value erosion, movement and individual performance reports. Figures drill into governed records and all report datasets export to CSV or Excel.
-- UI demonstration polish: global command search, clickable dashboard forecast/funnel visuals, progressive loading and export states, recent-record shortcuts, preserved list filters and clear return navigation from record details.
+- UI demonstration polish: global command search, clickable dashboard forecast/funnel visuals, progressive loading and export states, recent-record shortcuts, preserved list filters, clear return navigation, protected lead-board drag-and-drop and independently scrollable side navigation.
 - FastAPI workflow tests, TypeScript/production UI build, plus Docker/PostgreSQL and browser verification as recorded in VERIFICATION.md.
 
 ## Deliberate limits and remaining work
@@ -39,7 +39,7 @@ This release starts the implementation plan and delivers an executable core. It 
 | Administration | A documented, enforced local role matrix and field rules are visible in the UI. A custom fine-grained policy editor and connected-identity provisioning remain later work. |
 | Schema | Complete database-level role/tenant constraints and separate runtime/migration privileges. Artifact/email/share, commercial partner, closure and rate-governance fields are complete. |
 | Data entry | Company/contact/lead CSV and Excel import plus duplicate/data-quality workflows and qualified opportunity editing are complete locally. Connected-volume performance acceptance remains pending. |
-| Pipeline | Lead and opportunity workflow is complete locally: specialized filters, alternate validation routing, editable qualified fields, configurable working calendars, stage movement analysis, drag-and-drop, action completion, concurrency protection and seven milestones. Connected-scale acceptance remains pending. |
+| Pipeline | Lead and opportunity workflow is complete locally, including protected lead active-status drag-and-drop: specialized filters, alternate validation routing, editable qualified fields, configurable working calendars, stage movement analysis, drag-and-drop, action completion, concurrency protection and seven milestones. Connected-scale acceptance remains pending. |
 | Commercial | Local implementation complete. Configure and approve `FX_RATES_URL`/source before connected monthly refresh acceptance; synthetic rates remain clearly labelled. |
 | Activity | Company/contact completion is implemented with paginated protected histories, collision context, engagement updates and retained overrides. Scale acceptance at the PRD target remains pending. |
 | Documents | Local workflows are complete with a private Docker volume and an Outlook task-pane package. Azure Blob/SharePoint/Graph adapters, add-in tenant deployment and connected acceptance require the Azure environment and Entra application configuration. |

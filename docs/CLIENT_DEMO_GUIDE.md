@@ -31,7 +31,7 @@ From `/Users/n22/Desktop/ATPLCRM`:
 ```sh
 python3 scripts/demo.py status --instance INTERNATIONAL
 python3 scripts/demo.py backup --instance INTERNATIONAL
-docker compose ps
+docker compose --env-file .env ps
 ```
 
 Open <http://localhost:8082>. Use the shared local password stored as `DEMO_PASSWORD` in `.env`. Never display or read that value aloud. Recommended accounts:
@@ -94,9 +94,10 @@ Expected: client-facing activity updates engagement and last interaction; intern
 ### D. Lead lifecycle — 4 minutes
 
 1. Open the lead board and one lead in each meaningful state.
-2. Show source, Ball in Court, blocker and next action.
-3. Demonstrate nurture or disqualification requirements.
-4. Explain independent validation: the source/owner cannot self-validate; an eligible management user converts the lead once.
+2. Drag a lead across active statuses; explain that Closed is protected for evidence-based Convert, Nurture or Disqualify.
+3. Show source, Ball in Court, blocker and next action.
+4. Demonstrate nurture or disqualification requirements.
+5. Explain independent validation: the source/owner cannot self-validate; an eligible management user converts the lead once.
 
 Expected: conversion retains the lead as closed and creates one linked opportunity with history, contacts and source intact.
 
@@ -135,6 +136,14 @@ Expected: exact/prefix matches rank first; result paging works; recent history i
 3. Open an assigned pursuit and then a restricted pursuit where Maya is not on the team.
 
 Expected: assigned work remains editable; management imports/quality/duplicates are forbidden; restricted commercial fields and narrative are withheld when policy requires it.
+
+### I. Navigation and global search — 2 minutes
+
+1. Press **Cmd/Ctrl+K**, search across companies, contacts, leads and opportunities, and open a result.
+2. Show Recently opened and the clear Back-to-list action.
+3. On a short window, scroll the side menu independently through Administration.
+
+Expected: global search opens governed records, complete-result handoff reaches Data tools, list state persists and every navigation item remains reachable.
 
 ## 5. Presenter recovery
 

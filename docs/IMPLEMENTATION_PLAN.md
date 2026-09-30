@@ -1,7 +1,7 @@
 # ATPLCRM Implementation Plan and Azure Target Architecture
 
 **Version 1.1 — corrected for the implemented product and Azure production target**
-**Updated:** 13 September 2026
+**Updated:** 30 September 2026
 **Product:** ATPLCRM
 **Repository:** `/Users/n22/Desktop/ATPLCRM`
 **Brand:** dark blue, yellow, grey and white
@@ -14,7 +14,7 @@ The former plan incorrectly named Django and several libraries that are not used
 
 This plan has two explicit views:
 
-1. **As-built baseline (v0.15):** functionality already present and testable in local Docker.
+1. **As-built baseline (v0.16):** functionality already present and testable in local Docker.
 2. **Target state and remaining roadmap:** work required for the complete requirements and an Azure production release.
 
 ## 2. Truth at a glance
@@ -22,7 +22,7 @@ This plan has two explicit views:
 | Area | Correct position |
 |---|---|
 | Product boundary | Independent ATPLCRM repository at `/Users/n22/Desktop/ATPLCRM`; no Orbit dependency |
-| Current release | v0.15 client-demo-ready local release with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality, pre-sales and documents/email phases complete locally |
+| Current release | v0.16 client-demo-ready local release with synthetic local data; lead/pipeline, commercial, company/contact/activity, import/data-quality, pre-sales and documents/email phases complete locally |
 | Web application | React 19, TypeScript, Vite, custom responsive CSS, Lucide icons |
 | API | FastAPI 0.135, Pydantic, modular-monolith domain services |
 | Persistence | PostgreSQL 17, SQLAlchemy 2, Alembic migrations, decimal financial values |
@@ -54,7 +54,7 @@ The functional domains are:
 - Azure OpenAI assistance for grounded summaries, extraction and suggestions with explicit human confirmation.
 - Administration, configuration parity, monitoring, backup, restore, migration and operational runbooks.
 
-## 4. As-built v0.15 architecture
+## 4. As-built v0.16 architecture
 
 The current application is a modular monolith. This keeps conversion, audit, financial and authorization changes inside one PostgreSQL transaction boundary while the product is still growing.
 
@@ -97,7 +97,7 @@ ATPLCRM/
 
 Future Azure infrastructure belongs under `infra/azure/` as Bicep modules and environment parameter files. Microsoft adapters belong under `apps/api/atplcrm/integrations/`; the Outlook add-in can be a separate `apps/outlook-addin/` package. These are target additions, not present-day folders.
 
-## 5. What v0.15 already provides
+## 5. What v0.16 already provides
 
 ### Access, security and administration
 
@@ -111,8 +111,9 @@ Future Azure infrastructure belongs under `infra/azure/` as Bicep modules and en
 
 - Responsive overview, My Work, Needs Attention, companies, contacts, lead board/detail, opportunity board/detail, pre-sales, reports and configuration screens.
 - Company/contact create and edit; lead creation, source and linked pursuit context.
-- Server-paginated and sorted company, contact, lead and opportunity lists with primary search/filter controls.
+- Server-paginated and sorted company, contact, lead and opportunity lists with complete filters, preserved navigation state and personal saved views.
 - Tenant-scoped universal search with record type, owner, status and country filters.
+- Command-style top-bar global search with Cmd/Ctrl+K, direct record opening, complete-results handoff and recent-record shortcuts.
 - Personal saved views and manager bulk owner/Ball-in-Court assignment with optimistic conflict handling.
 - Mapped CSV templates, dry-run preview, validation, partial import, error reports and import history for companies, contacts and leads.
 - Exact duplicate review/merge, collision warnings and actionable data-quality scoring.
@@ -121,7 +122,7 @@ Future Azure infrastructure belongs under `infra/azure/` as Bicep modules and en
 
 - Independent lead validation, rejection, nurture, disqualification and idempotent lead-to-opportunity conversion.
 - Conversion preserves source, team, contacts, activities and history while maintaining separate linked Lead and Opportunity records.
-- Opportunity drag-and-drop stage movement plus an accessible select control.
+- Lead active-status and opportunity stage drag-and-drop, with protected lead closure workflows and accessible select controls.
 - Evidence capture and stage requirements, row locking, version checks and conflict responses for concurrent movement.
 - Atomic action completion: the finished action becomes immutable history and a new owner, action type, description and future due date are required.
 - Ball in Court handoff history, structured blockers, client-facing activity dates, stale/overdue warnings and seven lifecycle milestones.
@@ -138,7 +139,7 @@ Future Azure infrastructure belongs under `infra/azure/` as Bicep modules and en
 
 ## 6. Target Azure production architecture
 
-![Azure production runtime](architecture/01-azure-production-runtime.png)
+![Azure production runtime](../exports/architecture/01-azure-production-runtime.png)
 
 ### Request and data flow
 
@@ -183,7 +184,7 @@ Future Azure infrastructure belongs under `infra/azure/` as Bicep modules and en
 
 ## 7. US and International data isolation
 
-![Regional deployment isolation](architecture/02-azure-instance-isolation.png)
+![Regional deployment isolation](../exports/architecture/02-azure-instance-isolation.png)
 
 ATPLCRM requires two independently operated data planes. “International” and “US” regions must be selected through the data-residency and legal review; the diagram deliberately uses approved-region placeholders.
 
@@ -222,7 +223,7 @@ Runbooks must cover login outage, high error rate, stuck worker queue, failed mi
 
 ## 11. Secure CI/CD and deployment flow
 
-![Azure CI/CD and rollback](architecture/03-azure-cicd-release.png)
+![Azure CI/CD and rollback](../exports/architecture/03-azure-cicd-release.png)
 
 1. Pull requests require review and run formatting, focused API tests, UI production build, browser acceptance checks where relevant, migration validation, dependency/secret scanning and static security checks.
 2. GitHub Actions builds the API/worker/job image and Nginx/React image, records an SBOM and tags artifacts with the commit SHA.
@@ -242,7 +243,7 @@ Settings are typed and validated at startup. Environment files contain local val
 
 ## 13. Phased implementation roadmap
 
-### Phase A — Preserve and document the current v0.15 baseline (complete)
+### Phase A — Preserve and document the current v0.16 baseline (complete)
 
 **Delivered:** independent repository, branded responsive UI, FastAPI/PostgreSQL core, local Docker, users/configuration, import/data quality, core lead/opportunity workflow, accessible pipeline, lifecycle milestones, work queues and durable notification automation.
 
@@ -264,35 +265,35 @@ Settings are typed and validated at startup. Environment files contain local val
 
 **Exit:** demo password login is impossible in connected mode; all roles pass the access matrix; self-validation, cross-deployment access, IDOR and restricted-value leakage are rejected and audited.
 
-### Phase D — Complete data capture, imports and relationship history
+### Phase D — Data capture, imports and relationship history (local scope complete)
 
-**Dependencies:** approved field dictionary, retention rules and import templates.
+**Delivered locally:** complete company/contact fields, paginated histories, engagement derivation, consent/do-not-contact, CSV/Excel mapped imports, 20,000-row validation, fuzzy duplicate candidates, field-level merges and prior-touch collision context.
 
-**Deliverables:** remaining company/contact/opportunity fields, full paginated histories, contact engagement updates, consent/do-not-contact controls, Excel import, large background import, fuzzy duplicate candidates, field-level merge selection and prior-touch collision context.
+**Remaining:** repeat migration and history acceptance with representative connected data and approved retention rules.
 
-**Exit:** representative 20,000-contact migration dry run reconciles counts and errors; users can repair duplicates without losing ownership, source, activities or audit history.
+**Exit:** representative connected-data migration reconciles counts and errors; duplicate repair preserves ownership, source, activities and audit history.
 
-### Phase E — Commercial, partner, currency and closure workflows
+### Phase E — Commercial, partner, currency and closure workflows (local scope complete)
 
-**Dependencies:** approved partner formulas, FX source/refresh policy, probability snapshot rule and close/handoff evidence rules.
+**Delivered locally:** partner terms/evidence, fixed/contract/margin calculations, net local/USD values, FX refresh/alert/override/re-baseline, reproducible history, won/lost evidence, approval record, delivery handoff, calendars and specialized filters.
 
-**Deliverables:** complete partner terms/evidence UI, fixed/contract/margin calculations, provisional unknown-term handling, net local/USD values, rate refresh/alert/override/rebaseline, historical reproducibility, won/lost reasons, approval record, delivery handoff and specialized pipeline filters/calendars.
+**Remaining:** approve and configure the published FX source, then complete connected financial reconciliation and stakeholder acceptance.
 
-**Exit:** every forecast total can be reproduced from stored historical inputs; unsupported partner terms cannot inflate the forecast; close and handoff evidence are complete.
+**Exit:** forecast totals reconcile from stored inputs; unsupported partner terms cannot inflate forecast; connected rate and close/handoff controls pass acceptance.
 
-### Phase F — Pre-sales and Microsoft document collaboration
+### Phase F — Pre-sales and Microsoft document collaboration (local workflow complete)
 
-**Dependencies:** completed core pipeline, Graph/SharePoint tenant access and permission approval.
+**Delivered locally:** complete request lifecycle, ownership/contributors, review/share gates, capacity/cost, managed uploads, Microsoft links, selected-email/attachment metadata, versions, named sharing registers, reusable library and Outlook task-pane package.
 
-**Deliverables:** full nine-state request matrix, acceptance/review gates, contributors, needed-by/meeting dates, estimates/actuals, capacity and cost; managed artifact upload/link/email metadata; version/supersession; sharing approval, recipients/date/register; reusable library; Outlook add-in and Graph integration.
+**Remaining:** activate Azure Blob, Graph, SharePoint/OneDrive and Outlook add-in deployment after Entra application and permission approval.
 
-**Exit:** a request reaches approved/delivered with effort and review evidence, and an Outlook/SharePoint artifact can be registered, versioned, permission-checked and shared without a second uncontrolled copy.
+**Exit:** an approved tenant can register, version, permission-check and share Outlook/SharePoint evidence while preserving the same local workflow rules.
 
 ### Phase G — Complete analytics, search and exports
 
 **Dependencies:** commercial rules and reliable historical events.
 
-**Delivered locally in v0.15:** monthly/quarterly pipeline and forecast, historical funnel, loss/blocker/value-erosion/partner/movement analysis, individual contribution, role dashboards, record drill-down and complete server-side CSV/Excel report exports. **Remaining in this phase:** connected-scale reconciliation, caching if measurements justify it, and sanitized regional configuration comparison.
+**Delivered locally in v0.16:** monthly/quarterly pipeline and forecast, historical funnel, loss/blocker/value-erosion/partner/movement analysis, individual contribution, role dashboards, record drill-down and complete server-side CSV/Excel report exports. **Remaining in this phase:** connected-scale reconciliation, caching if measurements justify it, and sanitized regional configuration comparison.
 
 **Exit:** drill-down totals reconcile with independently calculated fixtures; permissions apply to aggregates and exports; the weekly leadership review requires no side spreadsheet.
 
@@ -354,7 +355,7 @@ Settings are typed and validated at startup. Environment files contain local val
 
 ## 17. Planning range and checkpoints
 
-The completed v0.15 baseline removes the original foundation and core workflow build from the remaining estimate. A reasonable planning range for the remaining full scope is **36–54 sequential engineering working days**, excluding delays for Azure/Entra/Graph access, security review, stakeholder decisions and production migration windows. Parallel frontend/backend/platform work can reduce calendar duration; use phase exit evidence rather than dates to declare completion.
+The v0.16 local baseline removes the original foundation and core workflow build from future estimates. The remaining work is dominated by Azure infrastructure, Entra/Graph access, production controls, connected-data acceptance and optional AI. Re-estimate after subscriptions, regions, tenant permissions, data volumes, security gates and AI scope are approved; the earlier 36–54 day planning range is retained only in project history and is not a current delivery commitment. Use phase exit evidence rather than dates to declare completion.
 
 | Checkpoint | Demonstrable outcome |
 |---|---|
@@ -383,4 +384,4 @@ The completed v0.15 baseline removes the original foundation and core workflow b
 - WCAG 2.2: https://www.w3.org/TR/WCAG22/
 - OWASP Application Security Verification Standard: https://owasp.org/www-project-application-security-verification-standard/
 
-The business scope remains Soothsayer CRM Requirements v4.0 supplied by the user. Implementation status and requirement traceability in this repository are the authority for claims about what v0.15 currently provides.
+The business scope remains Soothsayer CRM Requirements v4.0 supplied by the user. Implementation status and requirement traceability in this repository are the authority for claims about what v0.16 currently provides.

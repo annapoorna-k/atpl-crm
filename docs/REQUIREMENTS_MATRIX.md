@@ -1,4 +1,4 @@
-# Requirement traceability — initial implementation
+# ATPLCRM v0.16 requirement traceability
 
 Status meanings: **Implemented** is present in the current local core; **Partial** has additional PRD conditions to deliver; **Planned** is not implemented. Test results are recorded separately in VERIFICATION.md. No row implies production certification.
 
@@ -11,8 +11,8 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-12–17 | Activities, histories, sources, do-not-contact | Implemented | fast activity form with backdating, derived client-facing behavior, engagement/first-touch updates, protected outbound overrides and paginated Company/Contact histories |
 | FR-18–19 | Import and duplicate resolution | Implemented | mapped CSV/Excel dry runs, full-field row validation, confirmed duplicate warnings, durable history, exact/fuzzy review, field-level merges and reviewed-distinct decisions |
 | FR-20 | Contact collision | Implemented | pre-save warning names the owner, last outbound touch and related pursuit; save remains permitted and creates a durable owner notification |
-| FR-21 | Universal search | Implemented locally | PostgreSQL full-text indexes, exact/prefix ranking, tenant scope, type/owner/status/country filters, pagination and private recent-search history |
-| FR-25–26 | Lead create/board/list/filters | Implemented | separate lead board plus server-paginated status, owner, holder, source, priority, next-action and last-interaction filters |
+| FR-21 | Universal search | Implemented locally | PostgreSQL full-text indexes, exact/prefix ranking, tenant scope, type/owner/status/country filters, pagination, top-bar Cmd/Ctrl+K command search, direct opening and private recent-search history |
+| FR-25–26 | Lead create/board/list/filters | Implemented | separate lead board with protected active-status drag-and-drop plus server-paginated status, owner, holder, source, priority, next-action and last-interaction filters |
 | FR-27–29 | Independent validation, preserving conversion, nurture | Implemented | explicit eligible-validator routing, self-validation refusal, history-preserving conversion, nurture revisits and tenant working calendars |
 | FR-30 | Bulk assignment | Implemented | productivity.py and RecordList.tsx |
 | FR-35–36 | Pipeline and stage changes | Implemented | drag-and-drop cards and accessible selector in App.tsx; evidence, locking, version conflicts and audit history in api.py |
@@ -35,6 +35,6 @@ Status meanings: **Implemented** is present in the current local core; **Partial
 | FR-102–107 | Role dashboards and advanced reports | Implemented | role home cards, seven-transition medians, blocker ageing, grouped outcomes/losses, value erosion, movement and five-part individual performance views |
 | FR-110–115 | AI assistance | Planned | no provider connected or simulated AI claims |
 | Section 13 | Exception notifications and alerts | Implemented | per-user preferences, configurable thresholds, recipient/escalation rules, durable history, 15-minute scans, Monday leadership summaries and automation failure monitoring |
-| NFR-01–10 | Hosting/security/backups/performance/residency/mobile/audit/observability/parity | Partial | local Compose, persistent volumes, throttled demo login, guarded reset with backup, responsive/accessibility polish, indexed search and a disposable 20k/5k/5k benchmark harness; connected/production acceptance remains pending |
+| NFR-01–10 | Hosting/security/backups/performance/residency/mobile/audit/observability/parity | Partial | local Compose, persistent volumes, throttled demo login, guarded reset with backup, responsive/accessibility polish, independently scrollable navigation, preserved list context, indexed search and a disposable 20k/5k/5k benchmark harness; connected/production acceptance remains pending |
 
 The original full PRD and the step-by-step implementation plan remain the scope baseline. This matrix tracks the implemented increments and must be updated as each remaining condition is delivered and verified.

@@ -1,6 +1,6 @@
-# ATPLCRM v0.15 Local Performance Acceptance
+# ATPLCRM v0.16 Local Performance Acceptance
 
-The release was measured on 16 September 2026 in an isolated local Docker Compose deployment using PostgreSQL 17. The deterministic disposable profile contained 20,006 contacts, 5,000 open scale leads, 5,000 open scale opportunities and the showcase records. Raw results are stored in `performance-v0.15.json`.
+The data-bearing v0.15 baseline was measured on 16 September 2026 in an isolated local Docker Compose deployment using PostgreSQL 17. The deterministic disposable profile contained 20,006 contacts, 5,000 open scale leads, 5,000 open scale opportunities and the showcase records. Raw results are stored in `performance-v0.15.json`. v0.16 contains UI/navigation and role-dashboard response improvements without schema or scale-query changes; this historical benchmark remains the applicable local acceptance evidence until the next measured performance release.
 
 | Interaction | Dataset | Target | Observed | Result |
 |---|---:|---:|---:|---|

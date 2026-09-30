@@ -46,7 +46,7 @@ See [implementation status](docs/IMPLEMENTATION_STATUS.md) for limitations and r
 
 Before a client presentation, use the [complete v0.16 demo handbook](docs/ATPLCRM_v0.16_COMPLETE_DEMO_HANDBOOK.md) or its editable Word edition at `docs/ATPLCRM_v0.16_Complete_Client_Demo_Handbook.docx`. The shorter [client demo guide](docs/CLIENT_DEMO_GUIDE.md) remains available as a quick route. The [local performance acceptance](docs/PERFORMANCE_ACCEPTANCE.md) records the disposable 20k/5k/5k benchmark.
 
-Before approving a local release, use the [manual end-to-end testing handbook](docs/ATPLCRM_MANUAL_E2E_TESTING.md). An editable Word copy with embedded UI screenshots is available at `docs/ATPLCRM_v0.8_Manual_E2E_Testing_Handbook.docx`.
+Before approving a local release, use the [manual end-to-end testing handbook](docs/ATPLCRM_MANUAL_E2E_TESTING.md). An editable Word copy with embedded UI screenshots is available at `docs/ATPLCRM_v0.16_Manual_E2E_Testing_Handbook.docx`. For engineering and operational transfer, see the [project handoff](docs/PROJECT_HANDOFF.md) or its editable Word edition at `docs/ATPLCRM_v0.16_Project_Handoff.docx`.
 
 ## Verify
 

@@ -1,6 +1,6 @@
-# ATPLCRM v0.15 Manual End-to-End Testing Handbook
+# ATPLCRM v0.16 Manual End-to-End Testing Handbook
 
-**Document purpose:** manually validate every function implemented through ATPLCRM v0.15 before starting another feature.
+**Document purpose:** manually validate every function implemented through ATPLCRM v0.16 before starting another feature.
 **Audience:** business testers, administrators, sales users, pre-sales users and release reviewers.
 **Execution date:** ____________________  **Tester:** ____________________  **Build/commit:** ____________________
 **Environment:** ☐ International  ☐ US  **Result:** ☐ Pass  ☐ Pass with observations  ☐ Fail
@@ -11,7 +11,7 @@
 
 ![ATPLCRM login](manual-testing/screenshots/01-login.png)
 
-ATPLCRM v0.15 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
+ATPLCRM v0.16 is a local CRM workspace built with React, FastAPI, PostgreSQL, Redis/Celery and Docker. The tested business flow is:
 
 ```mermaid
 flowchart LR
@@ -30,9 +30,9 @@ Every pursuit has one commercial owner, one Ball in Court holder, one next actio
 
 ## 2. Scope boundary
 
-This handbook tests what exists in **v0.15**. The following connected services still require Azure tenant configuration and must not be reported as local defects merely because the external service is absent:
+This handbook tests what exists in **v0.16**. The following connected services still require Azure tenant configuration and must not be reported as local defects merely because the external service is absent:
 
-| Area | Current v0.15 boundary |
+| Area | Current v0.16 boundary |
 |---|---|
 | Identity | Local password sign-in only; Microsoft Entra/OIDC is planned. |
 | Authorization | Current owner/team/management rules are testable; a fine-grained policy editor is planned. |
@@ -41,8 +41,8 @@ This handbook tests what exists in **v0.15**. The following connected services s
 | Commercial | Partner terms, net values, fixed exchange rates, rate refresh/re-baseline and close/handoff fields are included locally. |
 | Pre-sales | Complete assignment, nine-state lifecycle, contributors, review/share evidence, effort, weekly capacity and cost reporting work locally. |
 | Reports | Role home dashboards and complete filtered management analytics work locally, with record drill-down and CSV/Excel exports. Connected-scale reconciliation remains pending. |
-| AI | No AI provider or simulated AI feature exists in v0.15. |
-| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.15. |
+| AI | No AI provider or simulated AI feature exists in v0.16. |
+| Notifications | Durable in-app alerts and scheduled tasks are included; email and mobile delivery are outside v0.16. |
 
 If a current control fails inside these boundaries, record a defect. If Azure tenant connectivity is unavailable, record the connected-only step as **Environment not configured** and still test its local API/UI equivalent.
 
@@ -105,7 +105,7 @@ All seeded accounts use the `DEMO_PASSWORD` value from the selected environment 
 1. Run `docker compose --env-file .env.manual exec -T api alembic current`.
 2. Run `docker compose --env-file .env.manual exec -T api python -c "from atplcrm.main import app; print(app.version)"`.
 
-**Expected:** migration is `0006_notifications (head)` and application version is `0.7.0`.
+**Expected:** migration is `0013_demo_readiness (head)` and application version is `0.16.0`.
 **Actual/result:** ______________________________________________________________________
 
 ### ENV-03 — Verify persistence across restart
@@ -201,18 +201,29 @@ Select every navigation item: Overview, My work, Needs attention, Leads, Opportu
 **Expected:** the correct title and content load without a full-page error; the header breadcrumb, instance label, profile, notifications and sign-out controls remain available.
 **Actual/result:** ______________________________________________________________________
 
-### NAV-02 — Search this view
+### NAV-02 — Global command search
 
-On Leads and Opportunities, enter part of a record, company, owner or next action in **Search this view**, clear it, and repeat with a non-matching term.
+1. From Overview press **Cmd+K** on macOS or **Ctrl+K** on Windows/Linux.
+2. Search for part of a company, contact, lead or opportunity name and open a result.
+3. Repeat with a term that returns more than eight matches and select **View all results**.
+4. Search for a record outside the bounded 100-pursuit board working set when scale data is available.
 
-**Expected:** visible board cards update immediately; clearing restores records; no-match state is understandable.
+**Expected:** the shortcut focuses the top-bar search; results show type, status and owner; selecting a result opens its detail; View all carries the query to Data tools; older records are fetched from the complete list before opening; Escape closes results.
 **Actual/result:** ______________________________________________________________________
 
-### NAV-03 — Mobile navigation and layout
+### NAV-03 — Responsive and scrollable navigation
 
-At widths 390 × 844 and 768 × 1024, open the navigation drawer, visit Contacts and an opportunity detail, then close the drawer.
+At widths 390 × 844, 768 × 1024 and a short desktop viewport, open the navigation, scroll from Overview through Administration, visit Contacts and an opportunity detail, then close the drawer.
 
-**Expected:** no horizontal page overflow, controls remain reachable, tables can scroll inside their containers, and the backdrop/menu controls work by keyboard.
+**Expected:** the menu scrolls independently when vertical space is limited; workspace/profile controls remain reachable; no horizontal page overflow appears; tables scroll inside their containers; backdrop/menu controls work by keyboard.
+**Actual/result:** ______________________________________________________________________
+
+### NAV-04 — Navigation continuity
+
+1. Apply list filters and move to page 2, open a record, then use **Back to…** and revisit the list after another screen.
+2. Open several records and return to Overview.
+
+**Expected:** list filters/page are restored, record detail has a clear return action, and Recently opened shows the latest records without duplicates.
 **Actual/result:** ______________________________________________________________________
 
 ## 6. Overview, My Work, attention and notifications
@@ -429,9 +440,9 @@ Test Board/List, owner, Ball in Court, text, status, priority, country, source, 
 
 ### LEAD-03 — Status progression
 
-As an assigned user, move New → Working → Engaged → Ready for validation using the detail status selector.
+As an assigned user, move New → Working → Engaged → Ready for validation using drag-and-drop, then repeat one transition using the detail status selector. Try dragging a lead into Closed.
 
-**Expected:** status persists and each change appears in Timeline; entering Ready records the Ready for validation milestone.
+**Expected:** active-status drag-and-drop and the selector use the same governed status API; status persists and each change appears in Timeline; entering Ready records the milestone; Closed refuses a drop because Convert, Nurture or Disqualify must capture required evidence.
 **Actual/result:** ______________________________________________________________________
 
 ### LEAD-04 — Nurture
@@ -1013,7 +1024,7 @@ Use this as the final completeness gate.
 |---|---|---|
 | Docker, migration, health, persistence and instance isolation | ENV-01–04 | ☐ |
 | Login, logout, inactive users, reset, session and CSRF recovery | AUTH-01–07 | ☐ |
-| Navigation, local search and responsive shell | NAV-01–03 | ☐ |
+| Navigation, global command search, continuity and responsive/scrollable shell | NAV-01–04 | ☐ |
 | Overview, My Work, Needs Attention, next move, action history and concurrency | WORK-01–07 | ☐ |
 | Preferences, inbox/read history, scan, scheduler and all recipient rules | NOTIF-01–05 | ☐ |
 | Company/contact CRUD, ownership, engagement, DNC and collision | REL-01–10 | ☐ |
