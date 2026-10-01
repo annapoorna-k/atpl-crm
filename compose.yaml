@@ -1,8 +1,7 @@
 name: ${COMPOSE_PROJECT_NAME:-atplcrm-international}
+
 x-app: &app
-  build:
-    context: .
-    dockerfile: infra/api.Dockerfile
+  image: yashuraj/atplcrm-api:v1
   environment: &environment
     APP_MODE: local-demo
     INSTANCE_TYPE: ${INSTANCE_TYPE:-INTERNATIONAL}
@@ -20,7 +19,9 @@ x-app: &app
     CSRF_TRUSTED_ORIGINS: http://localhost:${PORT:-8082},http://127.0.0.1:${PORT:-8082}
   init: true
   restart: unless-stopped
+
 services:
+
   db:
     image: postgres:17-alpine
     environment:
@@ -35,6 +36,7 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     command: [redis-server, --appendonly, 'yes']
@@ -46,15 +48,19 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+
   migrate:
     <<: *app
+    image: yashuraj/atplcrm-migrate:v1
     restart: 'no'
     command: [sh, -c, 'alembic upgrade head && python -m atplcrm.seed']
     depends_on:
       db:
         condition: service_healthy
+
   api:
     <<: *app
+    image: yashuraj/atplcrm-api:v1
     volumes:
       - artifacts:/data/artifacts
     depends_on:
@@ -67,22 +73,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
   worker:
     <<: *app
+    image: yashuraj/atplcrm-worker:v1
     command: [celery, -A, atplcrm.tasks.celery_app, worker, --loglevel=info, --concurrency=2]
     depends_on:
       api:
         condition: service_healthy
+
   scheduler:
     <<: *app
+    image: yashuraj/atplcrm-scheduler:v1
     command: [celery, -A, atplcrm.tasks.celery_app, beat, --loglevel=info, --schedule=/tmp/celerybeat-schedule]
     depends_on:
       api:
         condition: service_healthy
+
   web:
-    build:
-      context: .
-      dockerfile: infra/web.Dockerfile
+    image: yashuraj/atplcrm-web:v1
     ports:
       - '127.0.0.1:${PORT:-8082}:8080'
     depends_on:
@@ -94,6 +103,7 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+
 volumes:
   database:
   queue:
