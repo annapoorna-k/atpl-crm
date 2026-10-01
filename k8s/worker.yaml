@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: atplcrm
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: worker
+
+  template:
+    metadata:
+      labels:
+        app: worker
+
+    spec:
+      containers:
+        - name: worker
+          image: yashuraj/atplcrm-worker:v1
+
+          command:
+            - celery
+            - -A
+            - atplcrm.tasks.celery_app
+            - worker
+            - --loglevel=info
+            - --concurrency=2
+
+          envFrom:
+            - configMapRef:
+                name: atplcrm-config
+
+          env:
+            - name: APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: atplcrm-secret
+                  key: APP_SECRET
+
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: atplcrm-secret
+                  key: POSTGRES_PASSWORD
+
+            - name: DEMO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: atplcrm-secret
+                  key: DEMO_PASSWORD

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler
+  namespace: atplcrm
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: scheduler
+
+  template:
+    metadata:
+      labels:
+        app: scheduler
+
+    spec:
+      containers:
+        - name: scheduler
+          image: yashuraj/atplcrm-scheduler:v1
+
+          command:
+            - celery
+            - -A
+            - atplcrm.tasks.celery_app
+            - beat
+            - --loglevel=info
+            - --schedule=/tmp/celerybeat-schedule
+
+          envFrom:
+            - configMapRef:
+                name: atplcrm-config
+
+          env:
+            - name: APP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: atplcrm-secret
+                  key: APP_SECRET
+
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: atplcrm-secret
+                  key: POSTGRES_PASSWORD
+
+            - name: DEMO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: atplcrm-secret
+                  key: DEMO_PASSWORD
