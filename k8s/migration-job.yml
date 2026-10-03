@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: atplcrm-migration
-  namespace: atplcrm
+  namespace: atpl-crm
 spec:
   backoffLimit: 3
 
