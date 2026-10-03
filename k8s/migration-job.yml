@@ -16,8 +16,7 @@ spec:
 
       containers:
         - name: migration
-          image: yashuraj/atplcrm-migrate:v1
-
+          image: atplcrmacr.azurecr.io/atplcrm-migrate:v1
           command:
             - sh
             - -c

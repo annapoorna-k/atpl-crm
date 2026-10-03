@@ -18,8 +18,7 @@ spec:
     spec:
       containers:
         - name: scheduler
-          image: yashuraj/atplcrm-scheduler:v1
-
+          image: atplcrmacr.azurecr.io/atplcrm-scheduler:v1
           command:
             - celery
             - -A

@@ -18,8 +18,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: yashuraj/atplcrm-api:v1
-
+          image: atplcrmacr.azurecr.io/atplcrm-api:v1
           ports:
             - containerPort: 8000
 
