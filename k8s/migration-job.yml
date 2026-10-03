@@ -17,12 +17,20 @@ spec:
       containers:
         - name: migration
           image: atplcrmacr.azurecr.io/atplcrm-migrate:v1
+
           command:
-            - sh
+            - /bin/sh
             - -c
             - |
+              set -e
+
+              echo "Running database migrations..."
               alembic upgrade head
+
+              echo "Running application seed..."
               python -m atplcrm.seed
+
+              echo "Migration and seed completed successfully."
 
           envFrom:
             - configMapRef:

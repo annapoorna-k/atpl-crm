@@ -49,6 +49,10 @@ spec:
             - name: artifacts
               mountPath: /data/artifacts
 
+            - name: secrets-store
+              mountPath: /mnt/secrets-store
+              readOnly: true
+
           readinessProbe:
             httpGet:
               path: /api/health/
@@ -66,6 +70,13 @@ spec:
       volumes:
         - name: artifacts
           emptyDir: {}
+
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: atplcrm-keyvault
 
 ---
 apiVersion: v1
