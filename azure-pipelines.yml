@@ -1,0 +1,533 @@
+trigger:
+- main
+
+pr: none
+
+variables:
+  azureServiceConnection: 'ATPLCRM-Azure'
+  acrServiceConnection: 'ATPLCRM-ACR'
+
+  resourceGroup: 'atpl-crm'
+  aksCluster: 'aks-crm'
+  acrName: 'atplcrmacr'
+  acrLoginServer: 'atplcrmacr.azurecr.io'
+
+  namespace: 'atpl-crm'
+
+stages:
+
+# ============================================================
+# 1. VALIDATE
+# ============================================================
+
+- stage: Validate
+  displayName: 'Validate Kubernetes Manifests'
+  jobs:
+
+  - job: Validate
+    displayName: 'Validate Kubernetes YAML'
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+
+    - checkout: self
+      clean: true
+      fetchDepth: 0
+
+    - bash: |
+        set -e
+
+        echo "============================================================"
+        echo "GIT INFORMATION"
+        echo "============================================================"
+
+        echo "Commit:"
+        git rev-parse HEAD
+
+        echo "Branch:"
+        git branch --show-current
+
+        echo ""
+        echo "Repository:"
+        git remote -v
+
+        echo ""
+        echo "============================================================"
+        echo "KUBERNETES NAMESPACE VALIDATION"
+        echo "============================================================"
+
+        EXPECTED_NAMESPACE="atpl-crm"
+        FAILED=0
+
+        for file in k8s/*.yml k8s/*.yaml; do
+          [ -f "$file" ] || continue
+
+          echo ""
+          echo "Checking: $file"
+
+          while IFS= read -r line; do
+            namespace=$(echo "$line" | sed -E 's/.*namespace:[[:space:]]*//')
+
+            if [ -n "$namespace" ] && [ "$namespace" != "$EXPECTED_NAMESPACE" ]; then
+              echo "ERROR: $file contains namespace '$namespace'"
+              FAILED=1
+            fi
+          done < <(grep -E '^[[:space:]]*namespace:' "$file" || true)
+        done
+
+        if [ "$FAILED" -ne 0 ]; then
+          echo ""
+          echo "ERROR: Kubernetes namespace validation failed."
+          exit 1
+        fi
+
+        echo ""
+        echo "SUCCESS: All Kubernetes namespaces are '$EXPECTED_NAMESPACE'."
+
+        echo ""
+        echo "============================================================"
+        echo "MANIFEST FILES"
+        echo "============================================================"
+
+        find k8s -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) -print | sort
+
+      displayName: 'Validate Kubernetes namespace consistency'
+
+
+# ============================================================
+# 2. BUILD AND PUSH IMAGES
+# ============================================================
+
+- stage: Build
+  displayName: 'Build and Push Docker Images'
+  dependsOn: Validate
+  condition: succeeded()
+
+  jobs:
+
+  - job: BuildImages
+    displayName: 'Build and Push CRM Images'
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+
+    - checkout: self
+      clean: true
+      fetchDepth: 0
+
+    - task: Docker@2
+      displayName: 'Login to ATPLCRM ACR'
+      inputs:
+        command: 'login'
+        containerRegistry: '$(acrServiceConnection)'
+
+    - bash: |
+        set -e
+
+        echo "============================================================"
+        echo "BUILDING DOCKER IMAGES"
+        echo "============================================================"
+
+        echo "ACR: $(acrLoginServer)"
+
+        docker build \
+          -t $(acrLoginServer)/atplcrm-api:$(Build.BuildId) \
+          -t $(acrLoginServer)/atplcrm-api:latest \
+          -f Dockerfile.api .
+
+        docker build \
+          -t $(acrLoginServer)/atplcrm-web:$(Build.BuildId) \
+          -t $(acrLoginServer)/atplcrm-web:latest \
+          -f Dockerfile.web .
+
+        docker build \
+          -t $(acrLoginServer)/atplcrm-worker:$(Build.BuildId) \
+          -t $(acrLoginServer)/atplcrm-worker:latest \
+          -f Dockerfile.worker .
+
+        docker build \
+          -t $(acrLoginServer)/atplcrm-scheduler:$(Build.BuildId) \
+          -t $(acrLoginServer)/atplcrm-scheduler:latest \
+          -f Dockerfile.scheduler .
+
+        docker build \
+          -t $(acrLoginServer)/atplcrm-migrate:$(Build.BuildId) \
+          -t $(acrLoginServer)/atplcrm-migrate:latest \
+          -f Dockerfile.migrate .
+
+        echo ""
+        echo "Docker images built successfully."
+
+      displayName: 'Build CRM Docker Images'
+
+    - bash: |
+        set -e
+
+        echo "============================================================"
+        echo "PUSHING DOCKER IMAGES"
+        echo "============================================================"
+
+        docker push $(acrLoginServer)/atplcrm-api:$(Build.BuildId)
+        docker push $(acrLoginServer)/atplcrm-api:latest
+
+        docker push $(acrLoginServer)/atplcrm-web:$(Build.BuildId)
+        docker push $(acrLoginServer)/atplcrm-web:latest
+
+        docker push $(acrLoginServer)/atplcrm-worker:$(Build.BuildId)
+        docker push $(acrLoginServer)/atplcrm-worker:latest
+
+        docker push $(acrLoginServer)/atplcrm-scheduler:$(Build.BuildId)
+        docker push $(acrLoginServer)/atplcrm-scheduler:latest
+
+        docker push $(acrLoginServer)/atplcrm-migrate:$(Build.BuildId)
+        docker push $(acrLoginServer)/atplcrm-migrate:latest
+
+        echo ""
+        echo "All images pushed successfully."
+
+      displayName: 'Push CRM Images to ACR'
+
+
+# ============================================================
+# 3. PREPARE AKS
+# ============================================================
+
+- stage: PrepareAKS
+  displayName: 'Prepare AKS'
+  dependsOn: Build
+  condition: succeeded()
+
+  jobs:
+
+  - job: PrepareAKS
+    displayName: 'Connect to AKS'
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - task: AzureCLI@2
+      displayName: 'Get AKS Credentials'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+
+          set -e
+
+          echo "============================================================"
+          echo "AZURE / AKS"
+          echo "============================================================"
+
+          echo "Resource Group: $(resourceGroup)"
+          echo "AKS Cluster:    $(aksCluster)"
+
+          az account show \
+            --query "{subscription:id,tenant:tenantId}" \
+            -o table
+
+          az aks show \
+            --resource-group "$(resourceGroup)" \
+            --name "$(aksCluster)" \
+            --query "{name:name,powerState:powerState.code,provisioningState:provisioningState}" \
+            -o table
+
+          az aks get-credentials \
+            --resource-group "$(resourceGroup)" \
+            --name "$(aksCluster)" \
+            --overwrite-existing
+
+          kubectl get nodes
+
+          echo ""
+          echo "AKS connection successful."
+
+
+# ============================================================
+# 4. INFRASTRUCTURE
+# ============================================================
+
+- stage: Infrastructure
+  displayName: 'Deploy Infrastructure'
+  dependsOn: PrepareAKS
+  condition: succeeded()
+
+  jobs:
+
+  - job: Infrastructure
+    displayName: 'Deploy Namespace, PostgreSQL and Redis'
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - task: AzureCLI@2
+      displayName: 'Deploy Infrastructure'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+
+          set -e
+
+          echo "============================================================"
+          echo "CONNECTING TO AKS"
+          echo "============================================================"
+
+          az aks get-credentials \
+            --resource-group "$(resourceGroup)" \
+            --name "$(aksCluster)" \
+            --overwrite-existing
+
+          echo ""
+          echo "============================================================"
+          echo "APPLY NAMESPACE"
+          echo "============================================================"
+
+          kubectl apply -f k8s/namespace.yml
+
+          echo ""
+          echo "============================================================"
+          echo "APPLY CONFIGMAP"
+          echo "============================================================"
+
+          kubectl apply -f k8s/configmap.yml
+
+          echo ""
+          echo "============================================================"
+          echo "APPLY SECRET PROVIDER"
+          echo "============================================================"
+
+          kubectl apply -f k8s/secretprovider.yml
+
+          echo ""
+          echo "============================================================"
+          echo "APPLY POSTGRESQL"
+          echo "============================================================"
+
+          kubectl apply -f k8s/postgres.yml
+
+          echo ""
+          echo "============================================================"
+          echo "APPLY REDIS"
+          echo "============================================================"
+
+          kubectl apply -f k8s/redis.yml
+
+          echo ""
+          echo "============================================================"
+          echo "WAIT FOR DATABASES"
+          echo "============================================================"
+
+          kubectl rollout status \
+            deployment/postgres \
+            -n "$(namespace)" \
+            --timeout=300s
+
+          kubectl rollout status \
+            deployment/redis \
+            -n "$(namespace)" \
+            --timeout=300s
+
+          echo ""
+          echo "Infrastructure deployed successfully."
+
+
+# ============================================================
+# 5. APPLICATION
+# ============================================================
+
+- stage: Application
+  displayName: 'Deploy CRM Application'
+  dependsOn: Infrastructure
+  condition: succeeded()
+
+  jobs:
+
+  - job: Application
+    displayName: 'Deploy API, Worker, Scheduler and Web'
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - task: AzureCLI@2
+      displayName: 'Deploy CRM Application'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+
+          set -e
+
+          echo "============================================================"
+          echo "CONNECTING TO AKS"
+          echo "============================================================"
+
+          az aks get-credentials \
+            --resource-group "$(resourceGroup)" \
+            --name "$(aksCluster)" \
+            --overwrite-existing
+
+          echo ""
+          echo "============================================================"
+          echo "DEPLOY API"
+          echo "============================================================"
+
+          kubectl apply -f k8s/api.yml
+
+          echo ""
+          echo "============================================================"
+          echo "DEPLOY WORKER"
+          echo "============================================================"
+
+          kubectl apply -f k8s/worker.yml
+
+          echo ""
+          echo "============================================================"
+          echo "DEPLOY SCHEDULER"
+          echo "============================================================"
+
+          kubectl apply -f k8s/scheduler.yml
+
+          echo ""
+          echo "============================================================"
+          echo "DEPLOY WEB"
+          echo "============================================================"
+
+          kubectl apply -f k8s/web.yml
+
+          echo ""
+          echo "============================================================"
+          echo "RUN MIGRATION"
+          echo "============================================================"
+
+          kubectl delete job atplcrm-migration \
+            -n "$(namespace)" \
+            --ignore-not-found=true
+
+          kubectl apply -f k8s/migration-job.yml
+
+          echo ""
+          echo "============================================================"
+          echo "WAIT FOR APPLICATION"
+          echo "============================================================"
+
+          kubectl rollout status \
+            deployment/api \
+            -n "$(namespace)" \
+            --timeout=300s
+
+          kubectl rollout status \
+            deployment/worker \
+            -n "$(namespace)" \
+            --timeout=300s
+
+          kubectl rollout status \
+            deployment/scheduler \
+            -n "$(namespace)" \
+            --timeout=300s
+
+          kubectl rollout status \
+            deployment/web \
+            -n "$(namespace)" \
+            --timeout=300s
+
+          echo ""
+          echo "============================================================"
+          echo "APPLICATION DEPLOYMENT SUCCESSFUL"
+          echo "============================================================"
+
+          kubectl get pods -n "$(namespace)"
+
+          echo ""
+          kubectl get svc -n "$(namespace)"
+
+
+# ============================================================
+# 6. FINAL VERIFICATION
+# ============================================================
+
+- stage: Verify
+  displayName: 'Verify Deployment'
+  dependsOn: Application
+  condition: succeeded()
+
+  jobs:
+
+  - job: Verify
+    displayName: 'Verify CRM'
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+
+    - checkout: self
+      clean: true
+
+    - task: AzureCLI@2
+      displayName: 'Final AKS Verification'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+
+          set -e
+
+          az aks get-credentials \
+            --resource-group "$(resourceGroup)" \
+            --name "$(aksCluster)" \
+            --overwrite-existing
+
+          echo ""
+          echo "============================================================"
+          echo "FINAL DEPLOYMENT STATUS"
+          echo "============================================================"
+
+          kubectl get all -n "$(namespace)"
+
+          echo ""
+          echo "============================================================"
+          echo "PVC STATUS"
+          echo "============================================================"
+
+          kubectl get pvc -n "$(namespace)"
+
+          echo ""
+          echo "============================================================"
+          echo "MIGRATION JOB"
+          echo "============================================================"
+
+          kubectl get job -n "$(namespace)"
+
+          echo ""
+          echo "============================================================"
+          echo "WEB SERVICE"
+          echo "============================================================"
+
+          kubectl get svc web -n "$(namespace)"
+
+          echo ""
+          echo "============================================================"
+          echo "DEPLOYMENT COMPLETE"
+          echo "============================================================"
