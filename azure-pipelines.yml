@@ -116,7 +116,6 @@ stages:
       displayName: 'Validate Dockerfiles'
 
 
-
 # ============================================================
 # 2. BUILD AND PUSH IMAGES
 # ============================================================
@@ -140,11 +139,20 @@ stages:
       clean: true
       fetchDepth: 0
 
+    # --------------------------------------------------------
+    # LOGIN TO ACR
+    # --------------------------------------------------------
+
     - task: Docker@2
       displayName: 'Login to ATPLCRM ACR'
       inputs:
         command: 'login'
         containerRegistry: '$(acrServiceConnection)'
+
+
+    # --------------------------------------------------------
+    # BUILD IMAGES
+    # --------------------------------------------------------
 
     - bash: |
         set -euo pipefail
@@ -224,6 +232,11 @@ stages:
 
       displayName: 'Build CRM Docker Images'
 
+
+    # --------------------------------------------------------
+    # PUSH IMAGES
+    # --------------------------------------------------------
+
     - bash: |
         set -euo pipefail
 
@@ -231,55 +244,72 @@ stages:
         echo "PUSHING DOCKER IMAGES"
         echo "============================================================"
 
+        echo ""
+        echo "PUSH API"
         docker push $(acrLoginServer)/atplcrm-api:$(Build.BuildId)
         docker push $(acrLoginServer)/atplcrm-api:latest
 
+        echo ""
+        echo "PUSH WEB"
         docker push $(acrLoginServer)/atplcrm-web:$(Build.BuildId)
         docker push $(acrLoginServer)/atplcrm-web:latest
 
+        echo ""
+        echo "PUSH WORKER"
         docker push $(acrLoginServer)/atplcrm-worker:$(Build.BuildId)
         docker push $(acrLoginServer)/atplcrm-worker:latest
 
+        echo ""
+        echo "PUSH SCHEDULER"
         docker push $(acrLoginServer)/atplcrm-scheduler:$(Build.BuildId)
         docker push $(acrLoginServer)/atplcrm-scheduler:latest
 
+        echo ""
+        echo "PUSH MIGRATE"
         docker push $(acrLoginServer)/atplcrm-migrate:$(Build.BuildId)
         docker push $(acrLoginServer)/atplcrm-migrate:latest
 
-        echo ""
-        echo "============================================================"
-        echo "VERIFY ACR TAGS"
-        echo "============================================================"
 
-        az acr repository show-tags \
-          --name "$(acrName)" \
-          --repository atplcrm-api \
-          --output table
-
-        az acr repository show-tags \
-          --name "$(acrName)" \
-          --repository atplcrm-web \
-          --output table
-
-        az acr repository show-tags \
-          --name "$(acrName)" \
-          --repository atplcrm-worker \
-          --output table
-
-        az acr repository show-tags \
-          --name "$(acrName)" \
-          --repository atplcrm-scheduler \
-          --output table
-
-        az acr repository show-tags \
-          --name "$(acrName)" \
-          --repository atplcrm-migrate \
-          --output table
+        # ====================================================
+        # VERIFY IMAGES
+        # ====================================================
 
         echo ""
-        echo "All CRM images pushed successfully."
+        echo "============================================================"
+        echo "VERIFY ACR IMAGES"
+        echo "============================================================"
 
-      displayName: 'Push CRM Images to ACR'
+        echo ""
+        echo "VERIFY API IMAGE"
+        docker manifest inspect \
+          $(acrLoginServer)/atplcrm-api:$(Build.BuildId)
+
+        echo ""
+        echo "VERIFY WEB IMAGE"
+        docker manifest inspect \
+          $(acrLoginServer)/atplcrm-web:$(Build.BuildId)
+
+        echo ""
+        echo "VERIFY WORKER IMAGE"
+        docker manifest inspect \
+          $(acrLoginServer)/atplcrm-worker:$(Build.BuildId)
+
+        echo ""
+        echo "VERIFY SCHEDULER IMAGE"
+        docker manifest inspect \
+          $(acrLoginServer)/atplcrm-scheduler:$(Build.BuildId)
+
+        echo ""
+        echo "VERIFY MIGRATE IMAGE"
+        docker manifest inspect \
+          $(acrLoginServer)/atplcrm-migrate:$(Build.BuildId)
+
+        echo ""
+        echo "============================================================"
+        echo "ALL CRM IMAGES PUSHED AND VERIFIED SUCCESSFULLY"
+        echo "============================================================"
+
+      displayName: 'Push and Verify CRM Images'
 
 
 # ============================================================
@@ -487,6 +517,10 @@ stages:
           echo "ACR: $(acrLoginServer)"
           echo "Namespace: $(namespace)"
 
+          # ====================================================
+          # API
+          # ====================================================
+
           echo ""
           echo "============================================================"
           echo "DEPLOY API"
@@ -497,6 +531,10 @@ stages:
           kubectl -n "$(namespace)" \
             set image deployment/api \
             api="$(acrLoginServer)/atplcrm-api:$(Build.BuildId)"
+
+          # ====================================================
+          # WORKER
+          # ====================================================
 
           echo ""
           echo "============================================================"
@@ -509,6 +547,10 @@ stages:
             set image deployment/worker \
             worker="$(acrLoginServer)/atplcrm-worker:$(Build.BuildId)"
 
+          # ====================================================
+          # SCHEDULER
+          # ====================================================
+
           echo ""
           echo "============================================================"
           echo "DEPLOY SCHEDULER"
@@ -519,6 +561,10 @@ stages:
           kubectl -n "$(namespace)" \
             set image deployment/scheduler \
             scheduler="$(acrLoginServer)/atplcrm-scheduler:$(Build.BuildId)"
+
+          # ====================================================
+          # WEB
+          # ====================================================
 
           echo ""
           echo "============================================================"
@@ -531,6 +577,10 @@ stages:
             set image deployment/web \
             web="$(acrLoginServer)/atplcrm-web:$(Build.BuildId)"
 
+          # ====================================================
+          # MIGRATION
+          # ====================================================
+
           echo ""
           echo "============================================================"
           echo "RUN DATABASE MIGRATION"
@@ -540,8 +590,6 @@ stages:
             -n "$(namespace)" \
             --ignore-not-found=true
 
-          # Create the migration Job with the exact image produced
-          # by this pipeline. Do not leave it on the manifest's old v1 tag.
           sed \
             "s#atplcrmacr.azurecr.io/atplcrm-migrate:[^[:space:]]*#$(acrLoginServer)/atplcrm-migrate:$(Build.BuildId)#g" \
             k8s/migration-job.yml \
@@ -558,9 +606,14 @@ stages:
 
           echo ""
           echo "Migration logs:"
+
           kubectl logs \
             job/atplcrm-migration \
             -n "$(namespace)"
+
+          # ====================================================
+          # WAIT FOR APPLICATION
+          # ====================================================
 
           echo ""
           echo "============================================================"
@@ -586,6 +639,10 @@ stages:
             deployment/web \
             -n "$(namespace)" \
             --timeout=600s
+
+          # ====================================================
+          # VERIFY DEPLOYED IMAGES
+          # ====================================================
 
           echo ""
           echo "============================================================"
@@ -622,6 +679,7 @@ stages:
             -o wide
 
           echo ""
+
           kubectl get svc \
             -n "$(namespace)"
 
@@ -639,6 +697,7 @@ stages:
 
   - job: Verify
     displayName: 'Verify CRM'
+
     pool:
       vmImage: 'ubuntu-latest'
 
@@ -656,6 +715,10 @@ stages:
         inlineScript: |
 
           set -e
+
+          echo "============================================================"
+          echo "CONNECTING TO AKS"
+          echo "============================================================"
 
           az aks get-credentials \
             --resource-group "$(resourceGroup)" \
