@@ -97,6 +97,26 @@ stages:
       displayName: 'Validate Kubernetes namespace consistency'
 
 
+    - bash: |
+        set -euo pipefail
+
+        echo "============================================================"
+        echo "DOCKERFILE VALIDATION"
+        echo "============================================================"
+
+        test -f infra/api.Dockerfile
+        test -f infra/web.Dockerfile
+
+        echo "Found infra/api.Dockerfile"
+        echo "Found infra/web.Dockerfile"
+
+        echo ""
+        echo "Dockerfile validation successful."
+
+      displayName: 'Validate Dockerfiles'
+
+
+
 # ============================================================
 # 2. BUILD AND PUSH IMAGES
 # ============================================================
@@ -127,46 +147,85 @@ stages:
         containerRegistry: '$(acrServiceConnection)'
 
     - bash: |
-        set -e
+        set -euo pipefail
 
         echo "============================================================"
         echo "BUILDING DOCKER IMAGES"
         echo "============================================================"
 
         echo "ACR: $(acrLoginServer)"
+        echo "Build ID: $(Build.BuildId)"
+
+        echo ""
+        echo "============================================================"
+        echo "BUILD API IMAGE"
+        echo "============================================================"
 
         docker build \
           -t $(acrLoginServer)/atplcrm-api:$(Build.BuildId) \
           -t $(acrLoginServer)/atplcrm-api:latest \
-          -f Dockerfile.api .
+          -f infra/api.Dockerfile .
+
+        echo ""
+        echo "============================================================"
+        echo "BUILD WEB IMAGE"
+        echo "============================================================"
 
         docker build \
           -t $(acrLoginServer)/atplcrm-web:$(Build.BuildId) \
           -t $(acrLoginServer)/atplcrm-web:latest \
-          -f Dockerfile.web .
-
-        docker build \
-          -t $(acrLoginServer)/atplcrm-worker:$(Build.BuildId) \
-          -t $(acrLoginServer)/atplcrm-worker:latest \
-          -f Dockerfile.worker .
-
-        docker build \
-          -t $(acrLoginServer)/atplcrm-scheduler:$(Build.BuildId) \
-          -t $(acrLoginServer)/atplcrm-scheduler:latest \
-          -f Dockerfile.scheduler .
-
-        docker build \
-          -t $(acrLoginServer)/atplcrm-migrate:$(Build.BuildId) \
-          -t $(acrLoginServer)/atplcrm-migrate:latest \
-          -f Dockerfile.migrate .
+          -f infra/web.Dockerfile .
 
         echo ""
-        echo "Docker images built successfully."
+        echo "============================================================"
+        echo "TAG API IMAGE FOR WORKER"
+        echo "============================================================"
+
+        docker tag \
+          $(acrLoginServer)/atplcrm-api:$(Build.BuildId) \
+          $(acrLoginServer)/atplcrm-worker:$(Build.BuildId)
+
+        docker tag \
+          $(acrLoginServer)/atplcrm-api:$(Build.BuildId) \
+          $(acrLoginServer)/atplcrm-worker:latest
+
+        echo ""
+        echo "============================================================"
+        echo "TAG API IMAGE FOR SCHEDULER"
+        echo "============================================================"
+
+        docker tag \
+          $(acrLoginServer)/atplcrm-api:$(Build.BuildId) \
+          $(acrLoginServer)/atplcrm-scheduler:$(Build.BuildId)
+
+        docker tag \
+          $(acrLoginServer)/atplcrm-api:$(Build.BuildId) \
+          $(acrLoginServer)/atplcrm-scheduler:latest
+
+        echo ""
+        echo "============================================================"
+        echo "TAG API IMAGE FOR MIGRATION"
+        echo "============================================================"
+
+        docker tag \
+          $(acrLoginServer)/atplcrm-api:$(Build.BuildId) \
+          $(acrLoginServer)/atplcrm-migrate:$(Build.BuildId)
+
+        docker tag \
+          $(acrLoginServer)/atplcrm-api:$(Build.BuildId) \
+          $(acrLoginServer)/atplcrm-migrate:latest
+
+        echo ""
+        echo "============================================================"
+        echo "LOCAL IMAGE LIST"
+        echo "============================================================"
+
+        docker images | grep atplcrm
 
       displayName: 'Build CRM Docker Images'
 
     - bash: |
-        set -e
+        set -euo pipefail
 
         echo "============================================================"
         echo "PUSHING DOCKER IMAGES"
@@ -188,7 +247,37 @@ stages:
         docker push $(acrLoginServer)/atplcrm-migrate:latest
 
         echo ""
-        echo "All images pushed successfully."
+        echo "============================================================"
+        echo "VERIFY ACR TAGS"
+        echo "============================================================"
+
+        az acr repository show-tags \
+          --name "$(acrName)" \
+          --repository atplcrm-api \
+          --output table
+
+        az acr repository show-tags \
+          --name "$(acrName)" \
+          --repository atplcrm-web \
+          --output table
+
+        az acr repository show-tags \
+          --name "$(acrName)" \
+          --repository atplcrm-worker \
+          --output table
+
+        az acr repository show-tags \
+          --name "$(acrName)" \
+          --repository atplcrm-scheduler \
+          --output table
+
+        az acr repository show-tags \
+          --name "$(acrName)" \
+          --repository atplcrm-migrate \
+          --output table
+
+        echo ""
+        echo "All CRM images pushed successfully."
 
       displayName: 'Push CRM Images to ACR'
 
@@ -360,7 +449,7 @@ stages:
   jobs:
 
   - job: Application
-    displayName: 'Deploy API, Worker, Scheduler and Web'
+    displayName: 'Deploy API, Worker, Scheduler, Web and Migration'
 
     pool:
       vmImage: 'ubuntu-latest'
@@ -369,6 +458,7 @@ stages:
 
     - checkout: self
       clean: true
+      fetchDepth: 0
 
     - task: AzureCLI@2
       displayName: 'Deploy CRM Application'
@@ -378,7 +468,7 @@ stages:
         scriptLocation: 'inlineScript'
         inlineScript: |
 
-          set -e
+          set -euo pipefail
 
           echo "============================================================"
           echo "CONNECTING TO AKS"
@@ -391,10 +481,22 @@ stages:
 
           echo ""
           echo "============================================================"
+          echo "DEPLOYING BUILD $(Build.BuildId)"
+          echo "============================================================"
+
+          echo "ACR: $(acrLoginServer)"
+          echo "Namespace: $(namespace)"
+
+          echo ""
+          echo "============================================================"
           echo "DEPLOY API"
           echo "============================================================"
 
           kubectl apply -f k8s/api.yml
+
+          kubectl -n "$(namespace)" \
+            set image deployment/api \
+            api="$(acrLoginServer)/atplcrm-api:$(Build.BuildId)"
 
           echo ""
           echo "============================================================"
@@ -403,12 +505,20 @@ stages:
 
           kubectl apply -f k8s/worker.yml
 
+          kubectl -n "$(namespace)" \
+            set image deployment/worker \
+            worker="$(acrLoginServer)/atplcrm-worker:$(Build.BuildId)"
+
           echo ""
           echo "============================================================"
           echo "DEPLOY SCHEDULER"
           echo "============================================================"
 
           kubectl apply -f k8s/scheduler.yml
+
+          kubectl -n "$(namespace)" \
+            set image deployment/scheduler \
+            scheduler="$(acrLoginServer)/atplcrm-scheduler:$(Build.BuildId)"
 
           echo ""
           echo "============================================================"
@@ -417,16 +527,40 @@ stages:
 
           kubectl apply -f k8s/web.yml
 
+          kubectl -n "$(namespace)" \
+            set image deployment/web \
+            web="$(acrLoginServer)/atplcrm-web:$(Build.BuildId)"
+
           echo ""
           echo "============================================================"
-          echo "RUN MIGRATION"
+          echo "RUN DATABASE MIGRATION"
           echo "============================================================"
 
           kubectl delete job atplcrm-migration \
             -n "$(namespace)" \
             --ignore-not-found=true
 
-          kubectl apply -f k8s/migration-job.yml
+          # Create the migration Job with the exact image produced
+          # by this pipeline. Do not leave it on the manifest's old v1 tag.
+          sed \
+            "s#atplcrmacr.azurecr.io/atplcrm-migrate:[^[:space:]]*#$(acrLoginServer)/atplcrm-migrate:$(Build.BuildId)#g" \
+            k8s/migration-job.yml \
+            | kubectl apply -f -
+
+          echo ""
+          echo "Waiting for migration to complete..."
+
+          kubectl wait \
+            --for=condition=complete \
+            job/atplcrm-migration \
+            -n "$(namespace)" \
+            --timeout=600s
+
+          echo ""
+          echo "Migration logs:"
+          kubectl logs \
+            job/atplcrm-migration \
+            -n "$(namespace)"
 
           echo ""
           echo "============================================================"
@@ -436,32 +570,60 @@ stages:
           kubectl rollout status \
             deployment/api \
             -n "$(namespace)" \
-            --timeout=300s
+            --timeout=600s
 
           kubectl rollout status \
             deployment/worker \
             -n "$(namespace)" \
-            --timeout=300s
+            --timeout=600s
 
           kubectl rollout status \
             deployment/scheduler \
             -n "$(namespace)" \
-            --timeout=300s
+            --timeout=600s
 
           kubectl rollout status \
             deployment/web \
             -n "$(namespace)" \
-            --timeout=300s
+            --timeout=600s
+
+          echo ""
+          echo "============================================================"
+          echo "VERIFY DEPLOYED IMAGES"
+          echo "============================================================"
+
+          echo "API:"
+          kubectl get deployment api \
+            -n "$(namespace)" \
+            -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+
+          echo "Worker:"
+          kubectl get deployment worker \
+            -n "$(namespace)" \
+            -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+
+          echo "Scheduler:"
+          kubectl get deployment scheduler \
+            -n "$(namespace)" \
+            -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+
+          echo "Web:"
+          kubectl get deployment web \
+            -n "$(namespace)" \
+            -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
 
           echo ""
           echo "============================================================"
           echo "APPLICATION DEPLOYMENT SUCCESSFUL"
           echo "============================================================"
 
-          kubectl get pods -n "$(namespace)"
+          kubectl get pods \
+            -n "$(namespace)" \
+            -o wide
 
           echo ""
-          kubectl get svc -n "$(namespace)"
+          kubectl get svc \
+            -n "$(namespace)"
 
 
 # ============================================================
@@ -532,3 +694,4 @@ stages:
           echo "============================================================"
           echo "DEPLOYMENT COMPLETE"
           echo "============================================================"
+
